@@ -1,0 +1,887 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#08101C">
+<meta name="mobile-web-app-capable" content="yes">
+<title>실시간 외관 검사</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* 거치대에 고정한 휴대폰으로 라인 옆에서 쓰는 화면: 위 카메라(검사 영역·판정 표시), 아래 큰 판정 결과와 카운터, 맨 아래 탭.
+   카메라 앱처럼 어두운 한 가지 테마. 브랜드 색은 업무 관리판과 같은 그린·블루, 판정 색은 양품 초록 / 불량 빨강 / 대기 호박색. */
+:root{
+  color-scheme:dark;
+  --bg:#0A1220; --panel:#111C2E; --panel-2:#17243B; --line:#24344F;
+  --text:#E9EEF6; --muted:#9AA6BC; --dim:#66738B;
+  --brand:#19C39C; --brand-2:#5B8CFF;
+  --ok:#2BD49A; --ok-bg:rgba(43,212,154,.14);
+  --ng:#FF5A64; --ng-bg:rgba(255,90,100,.15);
+  --warn:#F5B547; --warn-bg:rgba(245,181,71,.14);
+  --font:'Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',system-ui,sans-serif;
+  --nav-h:62px;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg); color:var(--text); font-family:var(--font); font-size:15px; line-height:1.55; letter-spacing:-.2px; -webkit-font-smoothing:antialiased;
+  padding-top:env(safe-area-inset-top,0px);}
+button,input,select{font-family:inherit; color:inherit;}
+:focus-visible{outline:2px solid var(--brand-2); outline-offset:2px;}
+.wrap{max-width:720px; margin:0 auto; padding-left:max(14px, env(safe-area-inset-left,0px)); padding-right:max(14px, env(safe-area-inset-right,0px)); padding-block:0 calc(var(--nav-h) + 24px + env(safe-area-inset-bottom,0px));}
+.top{max-width:720px; margin:0 auto; padding:10px max(14px, env(safe-area-inset-right,0px)) 8px max(14px, env(safe-area-inset-left,0px)); display:flex; align-items:center; gap:9px;}
+.mark{width:24px; height:24px; flex:none;}
+.brand{font-weight:700; letter-spacing:-.2px;}
+.brand-div{width:1px; height:13px; background:var(--line);}
+.brand-sub{color:var(--muted); font-size:14px;}
+.top-count{margin-left:auto; font-size:13px; color:var(--muted); white-space:nowrap;}
+.top-count b{color:var(--text);} .top-count .n{color:var(--ng);}
+.label{font-size:12.5px; color:var(--muted); margin-bottom:5px; display:block;}
+.field{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:15px; width:100%; min-width:0;}
+.field:focus{outline:none; border-color:var(--brand-2);}
+.row2{display:grid; grid-template-columns:1.5fr 1fr; gap:10px;}
+.btn{border:1px solid var(--line); background:var(--panel-2); border-radius:12px; padding:10px 14px; font-size:14.5px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:46px;}
+.btn:disabled{opacity:.45; cursor:default;}
+.btn.primary{background:linear-gradient(135deg,var(--brand),#16A889); border-color:transparent; color:#06231B;}
+.btn.on{border-color:rgba(25,195,156,.6); color:var(--brand); background:rgba(25,195,156,.10);}
+.btn.ok{background:var(--ok-bg); border-color:rgba(43,212,154,.45); color:var(--ok);}
+.btn.ng{background:var(--ng-bg); border-color:rgba(255,90,100,.45); color:var(--ng);}
+.btn.small{min-height:36px; padding:6px 11px; font-size:13px; border-radius:9px;}
+.btn.ghost{background:transparent;}
+.btn.danger{color:var(--ng);}
+.btn.danger.confirming{background:var(--ng); color:#fff; border-color:var(--ng);}
+.hint{font-size:13px; color:var(--muted); margin:0;}
+.section-h{font-size:16px; font-weight:700; margin:22px 0 10px; display:flex; align-items:baseline; gap:8px;}
+.section-h .cnt{font-size:13px; color:var(--muted); font-weight:500;}
+.card{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px;}
+
+/* 카메라 */
+.stage{position:relative; margin-top:12px; border-radius:18px; overflow:hidden; background:#04080F; border:1px solid var(--line); width:100%; aspect-ratio:3/4; max-height:58vh;}
+.stage video, .stage canvas.ov{position:absolute; inset:0; width:100%; height:100%; object-fit:contain;}
+.stage canvas.ov{pointer-events:none;}
+.cam-off{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; text-align:center; padding:24px; color:var(--muted);}
+.banner{position:absolute; left:12px; right:12px; top:12px; display:flex; justify-content:space-between; gap:8px; align-items:flex-start; pointer-events:none;}
+.state{padding:7px 13px; border-radius:999px; font-weight:700; font-size:14px; background:rgba(6,12,22,.72); border:1px solid var(--line); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);}
+.state.wait{color:var(--muted);} .state.move{color:var(--warn); border-color:rgba(245,181,71,.5);} .state.judge{color:var(--brand-2); border-color:rgba(91,140,255,.5);}
+.fps{font-size:11.5px; color:var(--dim); background:rgba(6,12,22,.6); padding:3px 8px; border-radius:999px;}
+.verdict{margin-top:12px; border-radius:18px; padding:16px 18px; display:grid; grid-template-columns:auto 1fr; gap:16px; align-items:center; border:1px solid var(--line); background:var(--panel); min-height:96px;}
+.verdict .big{font-size:34px; font-weight:700; letter-spacing:-1px; line-height:1;}
+.verdict .sub{font-size:14px; color:var(--muted);}
+.verdict.ok{background:var(--ok-bg); border-color:rgba(43,212,154,.55);} .verdict.ok .big{color:var(--ok);}
+.verdict.ng{background:var(--ng-bg); border-color:rgba(255,90,100,.6);} .verdict.ng .big{color:var(--ng);}
+.verdict.idle .big{color:var(--dim); font-size:22px;}
+@media (prefers-reduced-motion:no-preference){ .verdict.flash{animation:flash .35s ease-out;} @keyframes flash{from{transform:scale(.97); filter:brightness(1.6)} to{transform:none; filter:none}} }
+.tally{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); margin-top:10px; background:var(--panel); border:1px solid var(--line); border-radius:14px;}
+.tally div{padding:9px 12px; border-left:1px solid var(--line);}
+.tally div:first-child{border-left:none;}
+.tally b{display:block; font-size:22px; font-weight:700; font-variant-numeric:tabular-nums;}
+.tally span{font-size:12.5px; color:var(--muted);}
+.tally .ng b{color:var(--ng);} .tally .ok b{color:var(--ok);}
+.controls{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin-top:12px;}
+.controls .btn{flex-direction:column; gap:2px; font-size:12.5px; min-height:58px; padding:6px;}
+.controls .btn svg{width:20px; height:20px;}
+.switches{display:flex; flex-wrap:wrap; gap:8px 16px; margin-top:12px; font-size:14px;}
+.switches label{display:flex; align-items:center; gap:7px;}
+.switches input{width:18px; height:18px; accent-color:var(--brand);}
+.fix{margin-top:12px;}
+.types{display:flex; flex-wrap:wrap; gap:7px; margin-top:10px;}
+.chip{border:1px solid var(--line); background:var(--panel); border-radius:999px; padding:6px 11px; font-size:13px; cursor:pointer; color:var(--muted);}
+.chip[aria-pressed="true"]{border-color:rgba(255,90,100,.6); background:var(--ng-bg); color:var(--ng); font-weight:700;}
+.chips{display:flex; gap:6px; flex-wrap:wrap;}
+.chips .chip[aria-pressed="true"]{border-color:rgba(25,195,156,.6); background:rgba(25,195,156,.12); color:var(--brand);}
+
+/* 기록 */
+.kpis{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); background:var(--panel); border:1px solid var(--line); border-radius:14px; margin-top:12px;}
+.kpis div{padding:12px 14px; border-left:1px solid var(--line);}
+.kpis div:first-child{border-left:none;}
+.kpis b{display:block; font-size:24px; font-weight:700;}
+.kpis span{font-size:12.5px; color:var(--muted);}
+.kpis .ng b{color:var(--ng);}
+.bars{display:grid; gap:9px;}
+.bar{display:grid; grid-template-columns:96px 1fr 44px; gap:10px; align-items:center; font-size:13.5px;}
+.bar .t{height:10px; border-radius:99px; background:var(--panel-2); overflow:hidden;}
+.bar .t i{display:block; height:100%; border-radius:99px; background:var(--ng);}
+.bar .n{text-align:right; color:var(--muted);}
+.tbl-wrap{overflow-x:auto; border:1px solid var(--line); border-radius:12px;}
+table{border-collapse:collapse; width:100%; font-size:13.5px;}
+th{background:#0F1A2C; color:var(--muted); font-weight:500; text-align:left; padding:9px 10px; white-space:nowrap;}
+td{padding:9px 10px; border-top:1px solid var(--line); white-space:nowrap;}
+.num{text-align:right;}
+.reclist{display:grid; gap:8px;}
+.rec{display:grid; grid-template-columns:52px 1fr auto; gap:12px; align-items:center; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:8px 10px; cursor:pointer; text-align:left; width:100%;}
+.rec img,.rec .noimg{width:52px; height:52px; border-radius:8px; object-fit:cover; background:var(--panel-2); display:flex; align-items:center; justify-content:center; color:var(--dim); font-size:11px;}
+.rec .m{min-width:0;}
+.rec .a{display:block; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.rec .b{display:block; font-size:12.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.pill{font-size:12.5px; font-weight:700; padding:3px 10px; border-radius:999px; white-space:nowrap;}
+.pill.ok{background:var(--ok-bg); color:var(--ok);} .pill.ng{background:var(--ng-bg); color:var(--ng);}
+.empty{border:1px dashed var(--line); border-radius:14px; padding:22px; text-align:center; color:var(--muted); font-size:14px;}
+
+/* 품목 */
+.items{display:grid; gap:10px;}
+.item{display:grid; grid-template-columns:76px 1fr; gap:12px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:10px;}
+.item canvas{width:76px; height:76px; border-radius:10px; background:var(--panel-2);}
+.item .nm{font-weight:700;}
+.item .meta{font-size:12.5px; color:var(--muted);}
+.item .acts{display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;}
+.roi-box{position:relative; margin-top:8px; border-radius:12px; overflow:hidden; background:#04080F; border:1px solid var(--line); touch-action:none;}
+.roi-box canvas{display:block; width:100%; height:auto; cursor:crosshair;}
+.cap-box{position:relative; margin-top:8px; border-radius:12px; overflow:hidden; background:#04080F; border:1px solid var(--line); aspect-ratio:3/4; max-height:50vh;}
+.cap-box video{position:absolute; inset:0; width:100%; height:100%; object-fit:contain;}
+.range{display:grid; grid-template-columns:1fr auto; gap:10px; align-items:center;}
+.range input{width:100%; accent-color:var(--brand);}
+.range b{min-width:28px; text-align:right;}
+.toggle{display:flex; gap:10px; align-items:center; font-size:14px;}
+.toggle input{width:18px; height:18px; accent-color:var(--brand);}
+
+/* 하단 탭바 */
+.nav{position:fixed; left:0; right:0; bottom:0; z-index:25; background:rgba(8,16,28,.95); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border-top:1px solid var(--line); padding-bottom:env(safe-area-inset-bottom,0px);}
+.nav-in{max-width:720px; margin:0 auto; display:grid; grid-template-columns:repeat(3,1fr); height:var(--nav-h);}
+.nav button{border:none; background:none; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; font-size:12px; color:var(--dim); font-weight:700; cursor:pointer;}
+.nav button svg{width:22px; height:22px;}
+.nav button[aria-current="page"]{color:var(--brand);}
+
+.modal{position:fixed; inset:0; z-index:40; background:rgba(4,8,15,.72); display:flex; align-items:flex-end; justify-content:center;}
+.sheet{background:var(--panel); border:1px solid var(--line); border-radius:20px 20px 0 0; width:100%; max-width:720px; max-height:94vh; overflow-y:auto;
+  padding:16px max(16px, env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(16px, env(safe-area-inset-left,0px));}
+.sheet-h{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px;}
+.sheet-h b{font-size:17px;}
+.form{display:grid; gap:14px;}
+.toast{position:fixed; left:50%; transform:translateX(-50%); bottom:calc(var(--nav-h) + 16px + env(safe-area-inset-bottom,0px)); z-index:50; background:#E9EEF6; color:#0A1220; font-weight:700; font-size:14px; padding:10px 16px; border-radius:999px; box-shadow:0 8px 24px rgba(0,0,0,.4); max-width:calc(100% - 32px); text-align:center;}
+@media (max-width:380px){ .row2{grid-template-columns:1fr;} .verdict .big{font-size:28px;} }
+</style>
+</head>
+<body>
+<header class="top">
+  <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="bmg" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#19C39C"/><stop offset="1" stop-color="#5B8CFF"/></linearGradient></defs><circle cx="16" cy="16" r="12.5" fill="none" stroke="url(#bmg)" stroke-width="4" stroke-linecap="round" stroke-dasharray="62 17" transform="rotate(-60 16 16)"/><circle cx="16" cy="16" r="4" fill="#19C39C"/></svg>
+  <span class="brand">실시간 외관 검사</span>
+  <span class="top-count" id="topCount"></span>
+</header>
+
+<main class="wrap">
+<!-- 검사 -->
+<section id="view-live">
+  <div class="row2">
+    <div><label class="label" for="itemSel">품목</label><select class="field" id="itemSel"></select></div>
+    <div><label class="label" for="lotInput">로트 번호</label><input class="field" id="lotInput" placeholder="예: 1022-A" autocomplete="off"></div>
+  </div>
+  <div class="stage" id="stage">
+    <video id="video" playsinline muted autoplay></video>
+    <canvas class="ov" id="overlay"></canvas>
+    <div class="cam-off" id="camOff">
+      <p id="camMsg" style="margin:0">카메라를 켜면 검사 영역에 제품을 올리는 즉시 자동으로 판정합니다.</p>
+      <button type="button" class="btn primary" id="camBtn">카메라 켜기</button>
+    </div>
+    <div class="banner"><span class="state wait" id="stateTag" hidden>대기</span><span class="fps" id="fps" hidden></span></div>
+  </div>
+
+  <div class="verdict idle" id="verdict"><div class="big" id="vBig">대기 중</div><div class="sub" id="vSub">품목을 고르고 카메라를 켜세요</div></div>
+
+  <div class="fix" id="fixBox" hidden>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px">
+      <button type="button" class="btn ok small" id="fixOk">양품으로 정정</button>
+      <button type="button" class="btn ng small" id="fixNg">불량으로 정정</button>
+    </div>
+    <div class="types" id="typeChips"></div>
+  </div>
+
+  <div class="tally">
+    <div class="ok"><b id="tOk">0</b><span>양품</span></div>
+    <div class="ng"><b id="tNg">0</b><span>불량</span></div>
+    <div><b id="tRate">–</b><span>불량률</span></div>
+  </div>
+  <p class="hint" style="margin-top:6px">오늘 · 선택한 품목 기준</p>
+
+  <div class="controls">
+    <button type="button" class="btn" id="judgeBtn" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M8.5 12.5l2.3 2.3 4.7-5"/></svg>지금 판정</button>
+    <button type="button" class="btn" id="torchBtn" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 2h6l-1 7h-4z"/><path d="M10 9h4v11a2 2 0 0 1-4 0z"/></svg>조명</button>
+    <button type="button" class="btn" id="ghostBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="12" height="12" rx="2"/><rect x="9" y="8" width="12" height="12" rx="2" stroke-dasharray="3 2"/></svg>기준 겹쳐보기</button>
+    <button type="button" class="btn" id="photoBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 9"/></svg>사진으로 판정</button>
+  </div>
+  <input type="file" id="photoInput" accept="image/*" hidden>
+
+  <div class="switches">
+    <label><input type="checkbox" id="swAuto" checked> 자동 판정</label>
+    <label><input type="checkbox" id="swSave" checked> 자동 저장</label>
+    <label><input type="checkbox" id="swSound" checked> 소리·진동</label>
+    <label><input type="checkbox" id="swFixed" checked> 거치대 고정</label>
+  </div>
+  <p class="hint" style="margin-top:10px">제품을 올려두면 흔들림이 멈추는 순간 3장을 연속으로 보고 다수결로 판정합니다. 제품을 내리면 다음 제품을 기다립니다.</p>
+</section>
+
+<!-- 기록 -->
+<section id="view-records" hidden>
+  <div class="section-h" style="margin-top:6px">검사 기록</div>
+  <div class="chips" id="periodChips">
+    <button type="button" class="chip" data-period="today" aria-pressed="true">오늘</button>
+    <button type="button" class="chip" data-period="7d" aria-pressed="false">최근 7일</button>
+    <button type="button" class="chip" data-period="month" aria-pressed="false">이번 달</button>
+    <button type="button" class="chip" data-period="lastmonth" aria-pressed="false">지난 달</button>
+  </div>
+  <div style="margin-top:10px"><select class="field" id="recItemSel" aria-label="품목 필터"></select></div>
+  <div class="kpis"><div><b id="kTotal">–</b><span>검사</span></div><div class="ng"><b id="kNg">–</b><span>불량</span></div><div><b id="kRate">–</b><span>불량률</span></div></div>
+  <div class="section-h">불량 유형</div><div class="bars" id="typeBars"></div>
+  <div class="section-h">품목별</div>
+  <div class="tbl-wrap"><table><thead><tr><th>품목</th><th class="num">검사</th><th class="num">불량</th><th class="num">불량률</th></tr></thead><tbody id="itemTbl"></tbody></table></div>
+  <div class="section-h">검사 목록 <span class="cnt" id="recCnt"></span></div>
+  <div class="reclist" id="recList"></div>
+  <div style="margin-top:16px; display:flex; gap:8px; flex-wrap:wrap">
+    <button type="button" class="btn" id="exportBtn">엑셀로 저장</button>
+  </div>
+  <p class="hint" style="margin-top:10px">기록은 이 휴대폰 안에만 저장됩니다. 크롬의 '인터넷 사용 기록 삭제'에서 사이트 데이터를 지우면 함께 지워지니, 엑셀이나 백업 파일로 주기적으로 저장해두세요.</p>
+</section>
+
+<!-- 품목·설정 -->
+<section id="view-items" hidden>
+  <div class="section-h" style="margin-top:6px">검사 품목 <span class="cnt" id="itemCnt"></span></div>
+  <p class="hint">품목마다 거치대에 올린 양품 사진 한 장과 검사 영역을 정해두면, 실시간 영상을 그 기준과 비교합니다.</p>
+  <div class="items" id="itemList" style="margin-top:12px"></div>
+  <div style="display:grid; grid-template-columns:2fr 1fr; gap:8px; margin-top:14px">
+    <button type="button" class="btn primary" id="newItemBtn">+ 품목 등록</button>
+    <button type="button" class="btn" id="importItemBtn">품목 가져오기</button>
+  </div>
+  <input type="file" id="importItemInput" accept=".json,application/json" hidden>
+
+  <div class="card" style="margin-top:18px">
+    <b style="font-size:14px">정확하게 쓰는 요령</b>
+    <ul class="hint" style="margin:6px 0 0; padding-left:18px; line-height:1.75">
+      <li>폰을 거치대에 고정하고, 제품 놓는 자리에 테이프로 표시해두세요.</li>
+      <li>흰 캡은 검정 무광 바탕, 어두운 제품은 흰 바탕이 좋습니다.</li>
+      <li>그림자가 덜 지는 LED 면조명을 쓰고, 창가 햇빛은 피하세요.</li>
+      <li>조명·바탕·거치대 위치가 바뀌면 양품 기준을 다시 찍으세요.</li>
+      <li>같은 품목을 다른 폰에서 쓰려면 '내보내기'한 파일을 그 폰에서 '품목 가져오기' 하세요.</li>
+    </ul>
+  </div>
+
+  <div class="section-h">엑셀 문서 작성자</div>
+  <input class="field" id="authorInput" placeholder="예: 홍길동" autocomplete="off" style="max-width:260px">
+  <p class="hint" style="margin-top:6px">엑셀로 저장할 때 문서 속성의 '만든 이·마지막 수정한 사람'에 들어갈 이름입니다. 이 폰에만 저장되고 공개 코드에는 들어가지 않습니다.</p>
+
+  <div class="section-h">백업</div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap">
+    <button type="button" class="btn small" id="backupBtn">전체 백업 파일 저장</button>
+    <button type="button" class="btn small ghost" id="restoreBtn">백업 불러오기</button>
+  </div>
+  <input type="file" id="restoreInput" accept=".json,application/json" hidden>
+  <p class="hint" style="margin-top:8px" id="storageInfo"></p>
+</section>
+</main>
+
+<nav class="nav" aria-label="화면 이동"><div class="nav-in">
+  <button type="button" data-go="live" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 8V5h3M17 5h3v3M20 16v3h-3M7 19H4v-3"/><circle cx="12" cy="12" r="3.5"/></svg>검사</button>
+  <button type="button" data-go="records"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>기록</button>
+  <button type="button" data-go="items"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>품목·백업</button>
+</div></nav>
+
+<div class="modal" id="itemModal" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="itemTitle">
+  <div class="sheet-h"><b id="itemTitle">품목 등록</b><button type="button" class="btn small ghost" id="itemClose">닫기</button></div>
+  <div class="form">
+    <div><label class="label" for="fName">품목명</label><input class="field" id="fName" placeholder="예: 오버캡 화이트 50mm"></div>
+    <div><label class="label" for="fCat">분류</label><select class="field" id="fCat"><option>캡·오버캡</option><option>펌프·밸브·노즐</option><option>사출</option><option>기타</option></select></div>
+    <div>
+      <span class="label">양품 기준</span>
+      <div style="display:flex; gap:8px; flex-wrap:wrap">
+        <button type="button" class="btn small" id="refCamBtn">카메라 화면으로 찍기</button>
+        <button type="button" class="btn small ghost" id="refFileBtn">사진 파일에서</button>
+      </div>
+      <input type="file" id="refFileInput" accept="image/*" hidden>
+      <div class="cap-box" id="capBox" hidden><video id="capVideo" playsinline muted autoplay></video></div>
+      <button type="button" class="btn primary" id="capShot" hidden style="width:100%; margin-top:8px">이 화면을 양품 기준으로 저장</button>
+      <div class="roi-box" id="roiBox" hidden><canvas id="roiCanvas"></canvas></div>
+      <p class="hint" id="roiHint" style="margin-top:6px">거치대에 양품을 올리고 '카메라 화면으로 찍기'를 누르세요. 찍은 뒤 제품 부분을 손가락으로 끌어 검사 영역을 정합니다.</p>
+    </div>
+    <div><span class="label">감도 (높을수록 작은 차이도 잡지만 오판정이 늘어남)</span><div class="range"><input type="range" id="fSens" min="1" max="10" value="5" aria-label="감도"><b id="fSensV">5</b></div></div>
+    <div><span class="label">무시할 최소 크기 (이보다 작은 점은 먼지로 봄)</span><div class="range"><input type="range" id="fMin" min="2" max="80" value="8" aria-label="최소 크기"><b id="fMinV">8</b></div></div>
+    <label class="toggle"><input type="checkbox" id="fKeepOk"> 양품도 사진을 저장 (용량을 더 씀)</label>
+    <div style="display:flex; gap:8px; flex-wrap:wrap">
+      <button type="button" class="btn danger" id="itemDel" hidden>삭제</button>
+      <button type="button" class="btn ghost" id="itemExport" hidden>내보내기</button>
+      <button type="button" class="btn primary" id="itemSave" style="flex:1">저장</button>
+    </div>
+  </div>
+</div></div>
+
+<div class="modal" id="recModal" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="recTitle">
+  <div class="sheet-h"><b id="recTitle">검사 기록</b><button type="button" class="btn small ghost" id="recClose">닫기</button></div>
+  <div id="recBody"></div>
+  <div style="display:flex; justify-content:flex-end; margin-top:14px"><button type="button" class="btn small danger" id="recDel">기록 삭제</button></div>
+</div></div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+"use strict";
+/* ========== 기본 도구 ========== */
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];}); }
+function pad(n){ return String(n).padStart(2,"0"); }
+function ymd(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+function hm(t){ var d=new Date(t); return pad(d.getHours())+":"+pad(d.getMinutes())+":"+pad(d.getSeconds()); }
+function addDays(d,n){ var r=new Date(d); r.setDate(r.getDate()+n); return r; }
+function today0(){ var d=new Date(); d.setHours(0,0,0,0); return d; }
+function rid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+var toastT=null;
+function toast(m){ var t=$("toast"); t.textContent=m; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(function(){ t.hidden=true; },2800); }
+function lsGet(k,d){ try{ var v=localStorage.getItem(k); return v==null?d:JSON.parse(v); }catch(e){ return d; } }
+function lsSet(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+function downloadBlob(blob, name){ var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 4000); }
+function blobToDataURL(b){ return new Promise(function(res){ var r=new FileReader(); r.onload=function(){ res(r.result); }; r.readAsDataURL(b); }); }
+function dataURLToBlob(u){ return fetch(u).then(function(r){ return r.blob(); }); }
+function loadImage(src){ return new Promise(function(res,rej){ var im=new Image(); im.onload=function(){ res(im); }; im.onerror=function(){ rej(new Error("image")); }; im.src=src; }); }
+function canvasBlob(c, q){ return new Promise(function(res){ c.toBlob(function(b){ res(b); }, "image/jpeg", q||0.85); }); }
+
+var DEFECT_TYPES=["스크래치","이물·흑점","찍힘·눌림","미성형","버(Burr)","변색·색차","웰드라인","수축(싱크)","은줄","기포","크랙","오염","변형·휨","인쇄불량","기타"];
+
+/* ========== 저장소 (이 폰 안의 IndexedDB) ========== */
+var idb=null;
+function openDB(){ return new Promise(function(res,rej){ var r=indexedDB.open("inspect-live",1);
+  r.onupgradeneeded=function(){ var d=r.result; d.createObjectStore("items",{keyPath:"id"}); var s=d.createObjectStore("records",{keyPath:"id"}); s.createIndex("day","day"); };
+  r.onsuccess=function(){ res(r.result); }; r.onerror=function(){ rej(r.error); }; }); }
+function store(name, mode){ return idb.transaction(name, mode||"readonly").objectStore(name); }
+function req2p(r){ return new Promise(function(res,rej){ r.onsuccess=function(){ res(r.result); }; r.onerror=function(){ rej(r.error); }; }); }
+function dbAll(name){ return req2p(store(name).getAll()); }
+function dbPut(name, obj){ return req2p(store(name,"readwrite").put(obj)); }
+function dbDel(name, id){ return req2p(store(name,"readwrite").delete(id)); }
+function recordsBetween(d0, d1){ return req2p(store("records").index("day").getAll(IDBKeyRange.bound(d0,d1))); }
+
+/* ========== 영상 처리 ==========
+   ① 양품 기준은 미리 한 번만 계산해 둠(흑백·경계선 지도·축소본) → 매 프레임은 검사 영상만 계산
+   ② 1/8 → 1/4 → 원본 순서로 이동·확대·회전을 찾아 기준 위치에 맞춤 (거치대 고정이면 탐색 범위를 좁혀 더 빠르게)
+   ③ 검사 영역 안 밝기·색을 기준에 맞춘 뒤, 픽셀마다 주변 2픽셀 안의 기준값과 비교해 진짜 차이만 남김
+   ④ 감도 기준을 넘는 점을 덩어리로 묶고, 최소 크기보다 작은 것은 먼지로 버림 */
+var WORK_W=560;
+function toCanvas(src, w, h){ var c=document.createElement("canvas"); c.width=w; c.height=h; var x=c.getContext("2d",{willReadFrequently:true}); x.drawImage(src,0,0,w,h); return c; }
+function srcSize(s){ return {w:s.videoWidth||s.naturalWidth||s.width, h:s.videoHeight||s.naturalHeight||s.height}; }
+function gray(d,n){ var g=new Float32Array(n); for(var i=0,j=0;i<n;i++,j+=4) g[i]=0.299*d[j]+0.587*d[j+1]+0.114*d[j+2]; return g; }
+function boxBlur(src,w,h){ var t=new Float32Array(w*h), o=new Float32Array(w*h), x,y,i;
+  for(y=0;y<h;y++) for(x=0;x<w;x++){ i=y*w+x; var a=src[i]; t[i]=((x>0?src[i-1]:a)+a+(x<w-1?src[i+1]:a))/3; }
+  for(y=0;y<h;y++) for(x=0;x<w;x++){ i=y*w+x; var b=t[i]; o[i]=((y>0?t[i-w]:b)+b+(y<h-1?t[i+w]:b))/3; } return o; }
+function gradMag(g,w,h){ var o=new Float32Array(w*h); for(var y=1;y<h-1;y++) for(var x=1;x<w-1;x++){ var i=y*w+x;
+  var gx=(g[i-w+1]+2*g[i+1]+g[i+w+1])-(g[i-w-1]+2*g[i-1]+g[i+w-1]), gy=(g[i+w-1]+2*g[i+w]+g[i+w+1])-(g[i-w-1]+2*g[i-w]+g[i-w+1]); o[i]=Math.sqrt(gx*gx+gy*gy)/4; } return o; }
+function down(src,w,h,f){ var nw=Math.floor(w/f), nh=Math.floor(h/f), o=new Float32Array(nw*nh);
+  for(var y=0;y<nh;y++) for(var x=0;x<nw;x++){ var s=0; for(var yy=0;yy<f;yy++) for(var xx=0;xx<f;xx++) s+=src[(y*f+yy)*w+x*f+xx]; o[y*nw+x]=s/(f*f); } return {d:o,w:nw,h:nh}; }
+function roiPts(roi,w,h,step){ var x0=Math.max(1,Math.round(roi.x*w)), y0=Math.max(1,Math.round(roi.y*h)), x1=Math.min(w-2,Math.round((roi.x+roi.w)*w)), y1=Math.min(h-2,Math.round((roi.y+roi.h)*h)), a=[];
+  for(var y=y0;y<y1;y+=step) for(var x=x0;x<x1;x+=step) a.push(x,y); return {pts:a, cx:(x0+x1)/2, cy:(y0+y1)/2}; }
+function alignCost(R,T,w,h,pts,cx,cy,P){ var c=Math.cos(P.th)*P.s, s=Math.sin(P.th)*P.s, sum=0, n=0;
+  for(var k=0;k<pts.length;k+=2){ var x=pts[k]-cx, y=pts[k+1]-cy, qx=(cx+c*x-s*y+P.dx+0.5)|0, qy=(cy+s*x+c*y+P.dy+0.5)|0;
+    if(qx<0||qy<0||qx>=w||qy>=h) continue; sum+=Math.abs(R[pts[k+1]*w+pts[k]]-T[qy*w+qx]); n++; }
+  return n<pts.length/2*0.75 ? Infinity : sum/n; }
+function toLevel(P,F1,c1x,c1y,F2,c2x,c2y){ var k=F1/F2, ex=c1x*k-c2x, ey=c1y*k-c2y, c=Math.cos(P.th)*P.s, s=Math.sin(P.th)*P.s;
+  return {s:P.s, th:P.th, dx:P.dx*k+ex-(c*ex-s*ey), dy:P.dy*k+ey-(s*ex+c*ey)}; }
+function searchAround(R,T,w,h,pts,cx,cy,base,thR,thS,sR,sS,dR,dS){ var best={c:alignCost(R,T,w,h,pts,cx,cy,base),P:base}, P, c;
+  for(var t=-thR;t<=thR+1e-9;t+=thS) for(var sc=-sR;sc<=sR+1e-9;sc+=sS) for(var y=-dR;y<=dR;y+=dS) for(var x=-dR;x<=dR;x+=dS){
+    P={s:base.s+sc, th:base.th+t*Math.PI/180, dx:base.dx+x, dy:base.dy+y}; c=alignCost(R,T,w,h,pts,cx,cy,P); if(c<best.c) best={c:c,P:P}; }
+  return best; }
+function sens2th(s){ return 64-(s-1)*5; }
+
+function prepareRef(src, roi){
+  var z=srcSize(src), w=WORK_W, h=Math.round(z.h*w/z.w), c=toCanvas(src,w,h), rd=c.getContext("2d").getImageData(0,0,w,h).data;
+  var rG=boxBlur(gray(rd,w*h),w,h), rg=gradMag(rG,w,h), R8=down(rg,w,h,8), R4=down(rg,w,h,4);
+  return {w:w,h:h,aspect:z.w/z.h,rd:rd,rg:rg,R8:R8,R4:R4,p8:roiPts(roi,R8.w,R8.h,2),p4:roiPts(roi,R4.w,R4.h,2),fp:roiPts(roi,w,h,4),fp3:roiPts(roi,w,h,3),roi:roi,canvas:c};
+}
+function alignTo(R, tg, fixed){
+  var w=R.w,h=R.h, T8=down(tg,w,h,8), T4=down(tg,w,h,4), best={c:Infinity}, P, c;
+  var rotMax=fixed?3:6, rotStep=fixed?1.5:3, s0=fixed?0.95:0.88, s1=fixed?1.051:1.121, sS=fixed?0.025:0.04, rng=Math.round(R.R8.w*(fixed?0.07:0.12));
+  for(var th=-rotMax;th<=rotMax+1e-9;th+=rotStep) for(var sc=s0;sc<=s1;sc+=sS) for(var dy=-rng;dy<=rng;dy++) for(var dx=-rng;dx<=rng;dx++){
+    P={s:sc,th:th*Math.PI/180,dx:dx,dy:dy}; c=alignCost(R.R8.d,T8.d,R.R8.w,R.R8.h,R.p8.pts,R.p8.cx,R.p8.cy,P); if(c<best.c) best={c:c,P:P}; }
+  if(!isFinite(best.c)) return null;
+  var b4=searchAround(R.R4.d,T4.d,R.R4.w,R.R4.h,R.p4.pts,R.p4.cx,R.p4.cy, toLevel(best.P,8,R.p8.cx,R.p8.cy,4,R.p4.cx,R.p4.cy), 1.5,0.75,0.02,0.01,2,1);
+  var cx=R.fp.cx, cy=R.fp.cy, b1=searchAround(R.rg,tg,w,h,R.fp.pts,cx,cy, toLevel(b4.P,4,R.p4.cx,R.p4.cy,1,cx,cy), 0.5,0.5,0.006,0.006,2,1);
+  var Pf=b1.P, fp=R.fp3, sa=0,sb=0,saa=0,sbb=0,sab=0,n=0, co=Math.cos(Pf.th)*Pf.s, si=Math.sin(Pf.th)*Pf.s;
+  for(var k=0;k<fp.pts.length;k+=2){ var x=fp.pts[k]-cx, y=fp.pts[k+1]-cy, qx=(cx+co*x-si*y+Pf.dx+0.5)|0, qy=(cy+si*x+co*y+Pf.dy+0.5)|0;
+    if(qx<0||qy<0||qx>=w||qy>=h) continue; var A=R.rg[fp.pts[k+1]*w+fp.pts[k]], B=tg[qy*w+qx]; sa+=A; sb+=B; saa+=A*A; sbb+=B*B; sab+=A*B; n++; }
+  if(!n) return null;
+  var cov=sab/n-(sa/n)*(sb/n), va=saa/n-(sa/n)*(sa/n), vb=sbb/n-(sb/n)*(sb/n);
+  return {P:Pf, cx:cx, cy:cy, ncc:(va>0&&vb>0)?cov/Math.sqrt(va*vb):0};
+}
+/* 한 프레임 판정: R=준비된 기준, src=영상·사진, o={sens,minSize,fixed} */
+function analyzeFrame(R, src, o){
+  var T0=performance.now(), z=srcSize(src);
+  if(!z.w||!z.h) return {retake:true, reason:"영상을 읽지 못했습니다"};
+  if(Math.abs(z.w/z.h-R.aspect)/R.aspect>0.08) return {retake:true, reason:"기준과 화면 비율이 다릅니다 (가로·세로 방향 확인)"};
+  var w=R.w, h=R.h, n=w*h, tc=toCanvas(src,w,h), td=tc.getContext("2d").getImageData(0,0,w,h).data;
+  var tG=boxBlur(gray(td,n),w,h), tg=gradMag(tG,w,h), al=alignTo(R,tg,o.fixed);
+  if(!al) return {retake:true, reason:"제품 위치를 찾지 못했습니다", ncc:0};
+  var roi=R.roi, mx=roi.w*0.06, my=roi.h*0.06;
+  var X0=Math.max(0,Math.floor((roi.x-mx)*w)), Y0=Math.max(0,Math.floor((roi.y-my)*h)), X1=Math.min(w,Math.ceil((roi.x+roi.w+mx)*w)), Y1=Math.min(h,Math.ceil((roi.y+roi.h+my)*h));
+  var cw=X1-X0, ch=Y1-Y0, cn=cw*ch, rd=R.rd;
+  var tw=new Uint8ClampedArray(cn*4), rr=new Uint8ClampedArray(cn*4), valid=new Uint8Array(cn);
+  var P=al.P, cs=Math.cos(P.th)*P.s, sn=Math.sin(P.th)*P.s;
+  for(var y=0;y<ch;y++) for(var x=0;x<cw;x++){
+    var px=X0+x, py=Y0+y, ix=px-al.cx, iy=py-al.cy, qx=al.cx+cs*ix-sn*iy+P.dx, qy=al.cy+sn*ix+cs*iy+P.dy, oo=(y*cw+x)*4, ro=(py*w+px)*4;
+    rr[oo]=rd[ro]; rr[oo+1]=rd[ro+1]; rr[oo+2]=rd[ro+2]; rr[oo+3]=255;
+    if(qx<0||qy<0||qx>w-1.001||qy>h-1.001){ tw[oo]=rr[oo]; tw[oo+1]=rr[oo+1]; tw[oo+2]=rr[oo+2]; tw[oo+3]=255; continue; }
+    var x0=qx|0, y0=qy|0, fx=qx-x0, fy=qy-y0, i00=(y0*w+x0)*4, i10=i00+4, i01=i00+w*4, i11=i01+4;
+    for(var k=0;k<3;k++) tw[oo+k]=(td[i00+k]*(1-fx)+td[i10+k]*fx)*(1-fy)+(td[i01+k]*(1-fx)+td[i11+k]*fx)*fy;
+    tw[oo+3]=255; valid[y*cw+x]=1;
+  }
+  var rx0=Math.round(roi.x*w)-X0, ry0=Math.round(roi.y*h)-Y0, rx1=Math.round((roi.x+roi.w)*w)-X0, ry1=Math.round((roi.y+roi.h)*h)-Y0;
+  function inRoi(x,y,m){ return x>=rx0+m && x<rx1-m && y>=ry0+m && y<ry1-m; }
+  var Tc=[], Rc=[];
+  for(var c=0;c<3;c++){ var A=new Float32Array(cn), B=new Float32Array(cn), sr=0,st=0,sr2=0,st2=0,cnt=0;
+    for(var q=0;q<cn;q++){ var v1=rr[q*4+c], v2=tw[q*4+c]; A[q]=v1; B[q]=v2; var yy=(q/cw)|0, xx=q-yy*cw; if(valid[q]&&inRoi(xx,yy,0)){ sr+=v1; st+=v2; sr2+=v1*v1; st2+=v2*v2; cnt++; } }
+    var mr=sr/cnt, mt=st/cnt, dr=Math.sqrt(Math.max(1,sr2/cnt-mr*mr)), dt=Math.sqrt(Math.max(1,st2/cnt-mt*mt)), g=Math.min(1.6,Math.max(0.6,dr/dt));
+    for(var q2=0;q2<cn;q2++) B[q2]=(B[q2]-mt)*g+mr;
+    Rc.push(boxBlur(A,cw,ch)); Tc.push(boxBlur(B,cw,ch)); }
+  function cd(P1,i,P2,j){ var a=Math.abs(P1[0][i]-P2[0][j]), b=Math.abs(P1[1][i]-P2[1][j]), c=Math.abs(P1[2][i]-P2[2][j]); return (a+b+c)/6+Math.max(a,b,c)/2; }
+  var th=sens2th(o.sens||5), th0=th*0.9, D=new Float32Array(cn), RAD=2;
+  for(var y4=0;y4<ch;y4++) for(var x4=0;x4<cw;x4++){ var i4=y4*cw+x4; if(!valid[i4]||!inRoi(x4,y4,2)) continue;
+    var d0=cd(Tc,i4,Rc,i4); if(d0<=th0){ D[i4]=d0; continue; }
+    var m1=1e9, m2=1e9;
+    for(var dy=-RAD;dy<=RAD;dy++){ var y5=y4+dy; if(y5<0||y5>=ch) continue; for(var dx=-RAD;dx<=RAD;dx++){ var x5=x4+dx; if(x5<0||x5>=cw) continue; var j=y5*cw+x5;
+      var a1=cd(Tc,i4,Rc,j); if(a1<m1) m1=a1; var a2=cd(Rc,i4,Tc,j); if(a2<m2) m2=a2; } }
+    D[i4]=Math.max(m1,m2); }
+  var M=new Uint8Array(cn); for(var z2=0;z2<cn;z2++) M[z2]=D[z2]>th?1:0;
+  // 잡티 제거: 이웃이 1개 이하인 외톨이 점만 지움 (가는 스크래치는 살림 — 3×3 열림 연산은 가는 선까지 지워버림)
+  function clean(S){ var O=new Uint8Array(cn); for(var y=1;y<ch-1;y++) for(var x=1;x<cw-1;x++){ var i=y*cw+x; if(!S[i]) continue; var nb=S[i-cw-1]+S[i-cw]+S[i-cw+1]+S[i-1]+S[i+1]+S[i+cw-1]+S[i+cw]+S[i+cw+1]; O[i]=nb>=2?1:0; } return O; }
+  M=clean(clean(M));
+  var lab=new Int32Array(cn), blobs=[], stack=[], minA=o.minSize||8;
+  for(var s0=0;s0<cn;s0++){ if(!M[s0]||lab[s0]) continue; var id=blobs.length+1, area=0, bx0=1e9,by0=1e9,bx1=-1,by1=-1, peak=0; stack.push(s0); lab[s0]=id;
+    while(stack.length){ var p=stack.pop(), px2=p%cw, py2=(p-px2)/cw; area++; if(px2<bx0)bx0=px2; if(px2>bx1)bx1=px2; if(py2<by0)by0=py2; if(py2>by1)by1=py2; if(D[p]>peak)peak=D[p];
+      for(var ny=-1;ny<=1;ny++) for(var nx=-1;nx<=1;nx++){ var a3=px2+nx, b3=py2+ny; if(a3<0||b3<0||a3>=cw||b3>=ch) continue; var qq=b3*cw+a3; if(M[qq]&&!lab[qq]){ lab[qq]=id; stack.push(qq);} } }
+    if(area>=minA) blobs.push({x:bx0,y:by0,w:bx1-bx0+1,h:by1-by0+1,area:area,peak:peak}); }
+  var merged=true; while(merged){ merged=false;
+    for(var a4=0;a4<blobs.length&&!merged;a4++) for(var b4=a4+1;b4<blobs.length;b4++){ var E=blobs[a4], F=blobs[b4], gap=16;
+      if(E.x-gap<F.x+F.w && F.x-gap<E.x+E.w && E.y-gap<F.y+F.h && F.y-gap<E.y+E.h){ var nx0=Math.min(E.x,F.x), ny0=Math.min(E.y,F.y);
+        blobs[a4]={x:nx0,y:ny0,w:Math.max(E.x+E.w,F.x+F.w)-nx0,h:Math.max(E.y+E.h,F.y+F.h)-ny0,area:E.area+F.area,peak:Math.max(E.peak,F.peak)}; blobs.splice(b4,1); merged=true; break; } } }
+  blobs.sort(function(a,b){ return b.area-a.area; });
+  var tot=0; blobs.forEach(function(b){ tot+=b.area; });
+  return {retake:false, ncc:al.ncc, al:al, X0:X0, Y0:Y0, w:cw, h:ch, blobs:blobs, areaPct:tot/Math.max(1,(rx1-rx0)*(ry1-ry0))*100, tw:tw, ms:performance.now()-T0};
+}
+function cropCanvas(res){ var c=document.createElement("canvas"); c.width=res.w; c.height=res.h; var x=c.getContext("2d"), id=x.createImageData(res.w,res.h); id.data.set(res.tw); x.putImageData(id,0,0); return c; }
+/* boxes 좌표 × scale = 그릴 위치, lw = 선 굵기 배율(생략하면 scale) */
+function drawBrackets(x, boxes, scale, color, lw){
+  var k=lw||scale;
+  boxes.forEach(function(b,i){ var p=5, bx=(b.x-p)*scale, by=(b.y-p)*scale, bw=(b.w+p*2)*scale, bh=(b.h+p*2)*scale, L=Math.max(7*k,Math.min(bw,bh)*0.3);
+    x.strokeStyle=color; x.lineWidth=2.5*k; x.lineCap="round"; x.beginPath();
+    x.moveTo(bx,by+L); x.lineTo(bx,by); x.lineTo(bx+L,by); x.moveTo(bx+bw-L,by); x.lineTo(bx+bw,by); x.lineTo(bx+bw,by+L);
+    x.moveTo(bx+bw,by+bh-L); x.lineTo(bx+bw,by+bh); x.lineTo(bx+bw-L,by+bh); x.moveTo(bx+L,by+bh); x.lineTo(bx,by+bh); x.lineTo(bx,by+bh-L); x.stroke();
+    x.fillStyle=color; x.beginPath(); x.arc(bx,by,8.5*k,0,Math.PI*2); x.fill(); x.fillStyle="#fff"; x.font="700 "+(11*k)+"px sans-serif"; x.textAlign="center"; x.textBaseline="middle"; x.fillText(String(i+1),bx,by+0.5); });
+}
+
+/* ========== 상태 ========== */
+var items=[], prepCache={}, settings=lsGet("ag_live_settings",{auto:true,save:true,sound:true,fixed:true,ghost:false});
+var stream=null, track=null, torchOn=false, running=false, wakeLock=null, audioCtx=null;
+var phase="armed", stable=0, votes=[], lastRes=null, prevTiny=null, motion=99, absentCount=0, lastRecord=null, chosenTypes=[];
+function curItem(){ return items.find(function(i){ return i.id===$("itemSel").value; }); }
+
+/* ========== 카메라 ========== */
+async function startCamera(){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ $("camMsg").textContent="이 브라우저에서는 카메라를 쓸 수 없습니다. 안드로이드 크롬에서 https 주소로 열어주세요."; return; }
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}, width:{ideal:1280}, height:{ideal:960}}, audio:false});
+  }catch(e){ $("camMsg").textContent = (e&&e.name==="NotAllowedError") ? "카메라 권한이 거부되었습니다. 주소창 왼쪽 자물쇠 → 권한에서 카메라를 허용해주세요." : "카메라를 켜지 못했습니다 ("+(e&&e.name||"오류")+")"; return; }
+  track=stream.getVideoTracks()[0];
+  $("video").srcObject=stream; $("capVideo").srcObject=stream;
+  try{ await $("video").play(); }catch(e){}
+  $("camOff").hidden=true; $("stateTag").hidden=false; $("fps").hidden=false;
+  var caps=track.getCapabilities?track.getCapabilities():{}; $("torchBtn").disabled=!caps.torch;
+  if(!audioCtx){ try{ audioCtx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+  requestWake();
+  running=true; phase="armed"; stable=0; votes=[]; loop();
+}
+async function requestWake(){ try{ if(navigator.wakeLock) wakeLock=await navigator.wakeLock.request("screen"); }catch(e){} }
+document.addEventListener("visibilitychange", function(){ if(document.visibilityState==="visible" && running) requestWake(); });
+async function toggleTorch(){ if(!track) return; torchOn=!torchOn; try{ await track.applyConstraints({advanced:[{torch:torchOn}]}); $("torchBtn").classList.toggle("on",torchOn); }catch(e){ torchOn=false; toast("이 폰에서는 조명을 켤 수 없습니다"); } }
+function beep(ok){
+  if(!settings.sound) return;
+  try{ if(navigator.vibrate) navigator.vibrate(ok?40:[180,90,180]); }catch(e){}
+  if(!audioCtx) return;
+  try{ var t=audioCtx.currentTime, tones=ok?[[1320,0,0.09]]:[[330,0,0.16],[330,0.22,0.16]];
+    tones.forEach(function(a){ var o=audioCtx.createOscillator(), g=audioCtx.createGain(); o.type=ok?"sine":"square"; o.frequency.value=a[0]; g.gain.setValueAtTime(0.0001,t+a[1]); g.gain.exponentialRampToValueAtTime(0.25,t+a[1]+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+a[1]+a[2]); o.connect(g); g.connect(audioCtx.destination); o.start(t+a[1]); o.stop(t+a[1]+a[2]+0.02); }); }catch(e){}
+}
+
+/* ========== 실시간 반복 ==========
+   대기 → (제품 감지 + 흔들림 없음) 3프레임 연속 → 다수결 판정 → 결과 유지 → 제품을 내리면 다시 대기 */
+var tinyC=document.createElement("canvas"); tinyC.width=64; tinyC.height=48; var tinyX=tinyC.getContext("2d",{willReadFrequently:true});
+function measureMotion(v){ tinyX.drawImage(v,0,0,64,48); var d=tinyX.getImageData(0,0,64,48).data, g=new Float32Array(64*48), s=0;
+  for(var i=0,j=0;i<g.length;i++,j+=4){ g[i]=0.299*d[j]+0.587*d[j+1]+0.114*d[j+2]; if(prevTiny) s+=Math.abs(g[i]-prevTiny[i]); }
+  var m=prevTiny?s/g.length:99; prevTiny=g; return m; }
+async function getPrep(it){
+  if(prepCache[it.id]) return prepCache[it.id];
+  var url=URL.createObjectURL(it.ref), im=await loadImage(url); URL.revokeObjectURL(url);
+  var R=prepareRef(im, it.roi); R.img=im; prepCache[it.id]=R; return R; }
+var frameN=0, fpsT=performance.now();
+async function loop(){
+  if(!running) return;
+  var v=$("video"), it=curItem(), t0=performance.now();
+  if(it && v.readyState>=2){
+    try{
+      var R=await getPrep(it);
+      motion=measureMotion(v);
+      var res=analyzeFrame(R, v, {sens:it.sens, minSize:it.minSize, fixed:settings.fixed});
+      lastRes=res; step(res, it); drawOverlay(res, R);
+      frameN++; var now=performance.now(); if(now-fpsT>1000){ $("fps").textContent=(frameN*1000/(now-fpsT)).toFixed(1)+"회/초 · "+Math.round(res.ms||0)+"ms"; frameN=0; fpsT=now; }
+    }catch(e){ console.error(e); }
+  } else if(!it){ setState("wait","품목을 먼저 등록하세요"); }
+  var el=performance.now()-t0; setTimeout(loop, Math.max(30, 120-el));
+}
+function present(res){ return res && !res.retake && res.ncc>=0.5; }
+function setState(cls, text){ var s=$("stateTag"); s.className="state "+cls; s.textContent=text; }
+function step(res, it){
+  var pres=present(res), still=motion<2.2;
+  if(phase==="armed"){
+    if(!pres){ stable=0; votes=[]; setState("wait","제품을 검사 영역에 올려주세요"); return; }
+    if(!still){ stable=0; votes=[]; setState("move","흔들림 — 잠시 그대로 두세요"); return; }
+    if(!settings.auto){ setState("judge","준비됨 — '지금 판정'을 누르세요"); return; }
+    stable++; votes.push(res); setState("judge","판정 중 "+Math.min(stable,3)+"/3");
+    if(stable>=3) decide(votes.slice(-3), it, "자동");
+  } else if(phase==="hold"){
+    if(!pres){ absentCount++; if(absentCount>=2){ phase="armed"; stable=0; votes=[]; absentCount=0; setState("wait","다음 제품을 올려주세요"); idleVerdict(); } }
+    else { absentCount=0; setState("wait","결과 확인 후 제품을 내려주세요"); }
+  }
+}
+/* 3장 중 2장 이상에서 의심 부위가 잡혀야 불량 — 반사·노이즈로 한 장만 튀는 오판정을 줄임 */
+async function decide(frames, it, method){
+  var ngFrames=frames.filter(function(r){ return r.blobs.length>0; });
+  var verdict = ngFrames.length*2>=frames.length+1 ? "NG" : "OK";
+  var best = verdict==="NG" ? ngFrames[ngFrames.length-1] : frames[frames.length-1];
+  phase="hold"; absentCount=0;
+  showVerdict(verdict, best, method);
+  beep(verdict==="OK");
+  if(settings.save) await saveRecord(verdict, best, it, method);
+}
+function showVerdict(v, res, method){
+  var box=$("verdict"); box.className="verdict "+(v==="OK"?"ok":"ng"); void box.offsetWidth; box.classList.add("flash");
+  $("vBig").textContent = v==="OK" ? "양품" : "불량";
+  $("vSub").textContent = v==="OK" ? "의심 부위 없음 · 위치 맞춤 "+Math.round(res.ncc*100)+"%" : "의심 부위 "+res.blobs.length+"곳 · 차이 면적 "+res.areaPct.toFixed(2)+"%";
+  chosenTypes=[]; renderChips(); $("fixBox").hidden=false; $("typeChips").hidden = v!=="NG";
+  frozen = {res:res, v:v}; lastShown={v:v, t:Date.now()};
+  $("fixOk").textContent="양품으로 정정"; $("fixNg").textContent="불량으로 정정";
+}
+var frozen=null, lastShown=null;
+/* 제품을 내리면 큰 판정 표시는 '대기'로 돌리고, 직전 결과는 작은 글씨로 남김 (다음 제품 결과와 헷갈리지 않게) */
+function idleVerdict(){
+  var box=$("verdict"); box.className="verdict idle"; $("vBig").textContent="다음 제품 대기";
+  $("vSub").textContent = lastShown ? "직전: "+(lastShown.v==="OK"?"양품":"불량")+" · "+hm(lastShown.t) : "검사 영역에 제품을 올려주세요";
+  $("fixOk").textContent="직전 판정을 양품으로"; $("fixNg").textContent="직전 판정을 불량으로";
+}
+function drawOverlay(res, R){
+  var ov=$("overlay"), v=$("video"), W=ov.clientWidth, H=ov.clientHeight, dpr=Math.min(2,window.devicePixelRatio||1);
+  if(ov.width!==Math.round(W*dpr)||ov.height!==Math.round(H*dpr)){ ov.width=Math.round(W*dpr); ov.height=Math.round(H*dpr); }
+  var x=ov.getContext("2d"); x.setTransform(dpr,0,0,dpr,0,0); x.clearRect(0,0,W,H);
+  var z=srcSize(v); if(!z.w) return;
+  var s=Math.min(W/z.w,H/z.h), dw=z.w*s, dh=z.h*s, ox=(W-dw)/2, oy=(H-dh)/2, k=dw/R.w; // 작업 좌표 → 화면
+  if(settings.ghost && R.img){ x.globalAlpha=0.32; x.drawImage(R.img,ox,oy,dw,dh); x.globalAlpha=1; }
+  var roi=R.roi; x.setLineDash([7,5]); x.strokeStyle="rgba(25,195,156,.75)"; x.lineWidth=1.6; x.strokeRect(ox+roi.x*dw, oy+roi.y*dh, roi.w*dw, roi.h*dh); x.setLineDash([]);
+  if(!present(res)) return;
+  // 의심 부위: 정렬된 좌표 → 실제 영상 위치로 되돌려 그림
+  var al=res.al, P=al.P, c=Math.cos(P.th)*P.s, sn=Math.sin(P.th)*P.s;
+  function toScreen(px,py){ var ix=px-al.cx, iy=py-al.cy; return [ox+(al.cx+c*ix-sn*iy+P.dx)*k, oy+(al.cy+sn*ix+c*iy+P.dy)*k]; }
+  var color = phase==="hold" && frozen ? (frozen.v==="NG"?"#FF5A64":"#2BD49A") : "#F5B547";
+  var boxes=res.blobs.map(function(b){ var p1=toScreen(res.X0+b.x, res.Y0+b.y), p2=toScreen(res.X0+b.x+b.w, res.Y0+b.y+b.h); return {x:Math.min(p1[0],p2[0]), y:Math.min(p1[1],p2[1]), w:Math.abs(p2[0]-p1[0]), h:Math.abs(p2[1]-p1[1])}; });
+  drawBrackets(x, boxes, 1, color);
+}
+
+/* ========== 기록 ========== */
+async function saveRecord(v, res, it, method){
+  var rec={id:rid(), t:Date.now(), day:ymd(new Date()), itemId:it.id, item:it.name, cat:it.cat, lot:$("lotInput").value.trim(), v:v, m:method,
+    av: res.blobs.length?"NG":"OK", n:res.blobs.length, a:Math.round(res.areaPct*100)/100, al:Math.round(res.ncc*100)/100, types:[], photo:null,
+    bx: res.blobs.slice(0,20).map(function(b){ return [+(b.x/res.w).toFixed(4), +(b.y/res.h).toFixed(4), +(b.w/res.w).toFixed(4), +(b.h/res.h).toFixed(4)]; })};
+  if(v==="NG" || it.keepOk){ rec.photo=await canvasBlob(cropCanvas(res),0.82); }
+  try{ await dbPut("records", rec); lastRecord=rec; refreshTally(); }catch(e){ toast("저장 공간이 부족해 기록을 저장하지 못했습니다"); }
+}
+async function fixLast(v){
+  if(!lastRecord){ if(frozen && lastRes){ await saveRecord(v, frozen.res, curItem(), "수동"); toast("저장했습니다"); } return; }
+  lastRecord.v=v; lastRecord.m="수동 정정"; lastRecord.types = v==="NG" ? chosenTypes.slice() : [];
+  if(v==="NG" && !lastRecord.photo && frozen) lastRecord.photo=await canvasBlob(cropCanvas(frozen.res),0.82);
+  await dbPut("records", lastRecord); refreshTally();
+  var box=$("verdict"); box.className="verdict "+(v==="OK"?"ok":"ng"); $("vBig").textContent=v==="OK"?"양품":"불량"; $("vSub").textContent="수동으로 정정했습니다";
+  $("typeChips").hidden = v!=="NG"; toast(v==="OK"?"양품으로 정정했습니다":"불량으로 정정했습니다 — 유형을 고르면 바로 반영됩니다");
+}
+async function refreshTally(){
+  var it=curItem(), today=ymd(new Date()), recs=[];
+  try{ recs=await recordsBetween(today,today); }catch(e){}
+  var all=recs, mine=it?recs.filter(function(r){ return r.itemId===it.id; }):[];
+  var ok=mine.filter(function(r){return r.v==="OK";}).length, ng=mine.length-ok;
+  $("tOk").textContent=ok; $("tNg").textContent=ng; $("tRate").textContent=mine.length?(ng/mine.length*100).toFixed(1)+"%":"–";
+  var allNg=all.filter(function(r){return r.v==="NG";}).length;
+  $("topCount").innerHTML = all.length ? '오늘 <b>'+all.length+'</b> · 불량 <b class="n">'+allNg+'</b>' : '';
+}
+function renderChips(){ $("typeChips").innerHTML=DEFECT_TYPES.map(function(t){ return '<button type="button" class="chip" data-type="'+esc(t)+'" aria-pressed="'+(chosenTypes.indexOf(t)>=0)+'">'+esc(t)+'</button>'; }).join(""); }
+
+/* ========== 사진으로 판정 (카메라 없이 확인할 때) ========== */
+async function judgePhoto(file){
+  var it=curItem(); if(!it){ toast("품목을 먼저 등록하세요"); return; }
+  var u=URL.createObjectURL(file), im=await loadImage(u); URL.revokeObjectURL(u);
+  var R=await getPrep(it), res=analyzeFrame(R, im, {sens:it.sens, minSize:it.minSize, fixed:false});
+  if(res.retake||res.ncc<0.35){ toast(res.reason||"기준과 많이 다른 사진입니다. 같은 위치·거리로 찍어주세요"); return; }
+  lastRes=res; await decide([res], it, "사진");
+  // 사진 판정은 결과 이미지를 화면에 고정 표시
+  var c=cropCanvas(res), ov=$("overlay"); $("camOff").hidden=true;
+  var W=ov.clientWidth, H=ov.clientHeight, dpr=Math.min(2,window.devicePixelRatio||1); ov.width=Math.round(W*dpr); ov.height=Math.round(H*dpr);
+  var x=ov.getContext("2d"); x.setTransform(dpr,0,0,dpr,0,0); x.fillStyle="#04080F"; x.fillRect(0,0,W,H);
+  var s=Math.min(W/c.width,H/c.height), ox=(W-c.width*s)/2, oy=(H-c.height*s)/2; x.drawImage(c,ox,oy,c.width*s,c.height*s);
+  x.save(); x.translate(ox,oy); drawBrackets(x,res.blobs,s,res.blobs.length?"#FF5A64":"#2BD49A"); x.restore();
+}
+
+/* ========== 화면 전환·기록 화면 ========== */
+function go(v){ ["live","records","items"].forEach(function(k){ $("view-"+k).hidden=k!==v; });
+  document.querySelectorAll(".nav button").forEach(function(b){ if(b.dataset.go===v) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current"); });
+  if(v==="records") renderRecords(); if(v==="items") renderItems(); window.scrollTo(0,0); }
+var period="today", recItem="";
+function periodRange(){ var t=today0();
+  if(period==="today") return [ymd(t),ymd(t)];
+  if(period==="7d") return [ymd(addDays(t,-6)),ymd(t)];
+  if(period==="month") return [ymd(new Date(t.getFullYear(),t.getMonth(),1)),ymd(t)];
+  return [ymd(new Date(t.getFullYear(),t.getMonth()-1,1)), ymd(new Date(t.getFullYear(),t.getMonth(),0))]; }
+async function periodRecords(){ var r=periodRange(), recs=await recordsBetween(r[0],r[1]); if(recItem) recs=recs.filter(function(x){ return x.itemId===recItem; }); recs.sort(function(a,b){ return b.t-a.t; }); return recs; }
+var thumbUrls=[];
+async function renderRecords(){
+  $("recItemSel").innerHTML='<option value="">전체 품목</option>'+items.map(function(i){ return '<option value="'+esc(i.id)+'">'+esc(i.name)+'</option>'; }).join(""); $("recItemSel").value=recItem;
+  document.querySelectorAll("#periodChips .chip").forEach(function(c){ c.setAttribute("aria-pressed", c.dataset.period===period?"true":"false"); });
+  var recs=await periodRecords(), ng=recs.filter(function(r){ return r.v==="NG"; });
+  $("kTotal").textContent=recs.length; $("kNg").textContent=ng.length; $("kRate").textContent=recs.length?(ng.length/recs.length*100).toFixed(1)+"%":"–";
+  var tc={}; ng.forEach(function(r){ (r.types&&r.types.length?r.types:["미분류"]).forEach(function(t){ tc[t]=(tc[t]||0)+1; }); });
+  var tl=Object.keys(tc).sort(function(a,b){ return tc[b]-tc[a]; }), mx=tl.length?tc[tl[0]]:1;
+  $("typeBars").innerHTML = tl.length ? tl.map(function(k){ return '<div class="bar"><span>'+esc(k)+'</span><div class="t"><i style="width:'+(tc[k]/mx*100)+'%"></i></div><span class="n">'+tc[k]+'건</span></div>'; }).join("") : '<div class="empty">이 기간에 불량이 없습니다</div>';
+  var by={}; recs.forEach(function(r){ by[r.item]=by[r.item]||{n:0,ng:0}; by[r.item].n++; if(r.v==="NG") by[r.item].ng++; });
+  var bk=Object.keys(by).sort(function(a,b){ return by[b].n-by[a].n; });
+  $("itemTbl").innerHTML = bk.length ? bk.map(function(k){ var o=by[k]; return '<tr><td>'+esc(k)+'</td><td class="num">'+o.n+'</td><td class="num">'+o.ng+'</td><td class="num">'+(o.ng/o.n*100).toFixed(1)+'%</td></tr>'; }).join("") : '<tr><td colspan="4" style="color:var(--muted)">기록이 없습니다</td></tr>';
+  thumbUrls.forEach(function(u){ URL.revokeObjectURL(u); }); thumbUrls=[];
+  $("recCnt").textContent = recs.length ? recs.length+"건" : "";
+  $("recList").innerHTML = recs.length ? recs.slice(0,300).map(function(r){
+    var img='<span class="noimg">사진 없음</span>'; if(r.photo){ var u=URL.createObjectURL(r.photo); thumbUrls.push(u); img='<img src="'+u+'" alt="">'; }
+    return '<button type="button" class="rec" data-id="'+esc(r.id)+'">'+img+'<span class="m"><span class="a">'+esc(r.item)+(r.lot?' · '+esc(r.lot):'')+'</span><span class="b">'+esc(r.day.slice(5).replace("-","/"))+' '+hm(r.t)+' · '+esc(r.m)+(r.types&&r.types.length?' · '+esc(r.types.join(", ")):'')+'</span></span><span class="pill '+(r.v==="NG"?"ng":"ok")+'">'+(r.v==="NG"?"불량":"양품")+'</span></button>';
+  }).join("")+(recs.length>300?'<p class="hint">최근 300건만 보여줍니다. 전체는 엑셀로 저장해 확인하세요.</p>':'') : '<div class="empty">'+(period==="today"?"오늘 기록이 없습니다. 검사 화면에서 판정하면 자동으로 쌓입니다.":"이 기간에 기록이 없습니다")+'</div>';
+}
+var openRec=null, delPending=false;
+async function openRecord(id){
+  var recs=await periodRecords(), r=recs.find(function(x){ return x.id===id; }); if(!r) return; openRec=r; delPending=false; $("recDel").textContent="기록 삭제"; $("recDel").classList.remove("confirming");
+  $("recTitle").textContent=r.item+(r.lot?" · "+r.lot:"");
+  var h='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><span class="pill '+(r.v==="NG"?"ng":"ok")+'">'+(r.v==="NG"?"불량":"양품")+'</span><span class="hint">'+esc(r.day)+' '+hm(r.t)+' · '+esc(r.m)+' · 자동 비교 '+(r.av==="NG"?"의심 "+r.n+"곳":"이상 없음")+'</span></div>';
+  if(r.photo) h+='<canvas id="recCanvas" style="width:100%;border-radius:12px;background:#04080F"></canvas>';
+  if(r.types&&r.types.length) h+='<p style="margin:10px 0 0"><b>불량 유형</b> '+esc(r.types.join(", "))+'</p>';
+  $("recBody").innerHTML=h; $("recModal").hidden=false;
+  if(r.photo){ var u=URL.createObjectURL(r.photo), im=await loadImage(u); URL.revokeObjectURL(u); var c=$("recCanvas"); c.width=im.width; c.height=im.height; var x=c.getContext("2d"); x.drawImage(im,0,0);
+    drawBrackets(x,(r.bx||[]).map(function(b){ return {x:b[0]*im.width,y:b[1]*im.height,w:b[2]*im.width,h:b[3]*im.height}; }), 1, r.v==="NG"?"#FF5A64":"#2BD49A", im.width/420); }
+}
+async function exportXlsx(){
+  var recs=(await periodRecords()).slice().reverse(); if(!recs.length){ toast("저장할 기록이 없습니다"); return; }
+  var rows=[["일자","시각","품목","분류","로트","판정","판정 방법","자동 비교","의심 부위","차이 면적(%)","위치 맞춤","불량 유형","사진"]];
+  recs.forEach(function(r){ rows.push([r.day,hm(r.t),r.item,r.cat||"",r.lot||"",r.v==="NG"?"불량":"양품",r.m,r.av==="NG"?"의심":"이상 없음",r.n,r.a,r.al!=null?Math.round(r.al*100)+"%":"",(r.types||[]).join(", "),r.photo?"있음":""]); });
+  var by={}; recs.forEach(function(r){ by[r.item]=by[r.item]||{c:r.cat||"",n:0,ng:0}; by[r.item].n++; if(r.v==="NG") by[r.item].ng++; });
+  var sum=[["품목","분류","검사 수","불량 수","불량률(%)"]]; Object.keys(by).forEach(function(k){ var o=by[k]; sum.push([k,o.c,o.n,o.ng,Math.round(o.ng/o.n*1000)/10]); });
+  var tc={}; recs.filter(function(r){return r.v==="NG";}).forEach(function(r){ (r.types&&r.types.length?r.types:["미분류"]).forEach(function(t){ tc[t]=(tc[t]||0)+1; }); });
+  var ty=[["불량 유형","건수"]]; Object.keys(tc).sort(function(a,b){ return tc[b]-tc[a]; }).forEach(function(k){ ty.push([k,tc[k]]); });
+  XLSX_AUTHOR = lsGet("ag_live_author","");
+  var r=periodRange(), data=buildXlsx([{name:"검사 기록",rows:rows,widths:[11,9,30,13,13,7,10,10,9,11,9,24,6]},{name:"품목별 요약",rows:sum,widths:[30,13,9,9,10]},{name:"불량 유형별",rows:ty,widths:[16,8]}]);
+  downloadBlob(new Blob([data],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}), "inspection_"+r[0]+(r[0]!==r[1]?"_"+r[1]:"")+".xlsx");
+  toast(recs.length+"건을 엑셀로 저장했습니다");
+}
+
+/* ========== 품목 ========== */
+async function loadItems(){ items=(await dbAll("items")).sort(function(a,b){ return a.createdAt-b.createdAt; }); renderItemSel(); }
+function renderItemSel(){
+  var sel=$("itemSel"), keep=sel.value||lsGet("ag_live_item","");
+  if(!items.length){ sel.innerHTML='<option value="">먼저 품목을 등록하세요</option>'; sel.disabled=true; $("judgeBtn").disabled=true; return; }
+  sel.disabled=false; $("judgeBtn").disabled=false;
+  sel.innerHTML=items.map(function(i){ return '<option value="'+esc(i.id)+'">'+esc(i.name)+'</option>'; }).join("");
+  sel.value = items.some(function(i){ return i.id===keep; }) ? keep : items[0].id; refreshTally();
+}
+function renderItems(){
+  $("itemCnt").textContent=items.length?items.length+"개":"";
+  $("itemList").innerHTML = items.length ? items.map(function(i){ return '<div class="item"><canvas data-thumb="'+esc(i.id)+'" width="152" height="152"></canvas><div style="min-width:0"><div class="nm">'+esc(i.name)+'</div><div class="meta">'+esc(i.cat)+' · 감도 '+i.sens+' · 최소 크기 '+i.minSize+'</div><div class="acts"><button type="button" class="btn small" data-edit="'+esc(i.id)+'">수정</button><button type="button" class="btn small ghost" data-use="'+esc(i.id)+'">이 품목 검사</button></div></div></div>'; }).join("") : '<div class="empty">등록된 품목이 없습니다. 거치대에 양품을 올리고 아래 버튼으로 등록하세요.</div>';
+  items.forEach(function(i){ var u=URL.createObjectURL(i.ref); loadImage(u).then(function(im){ URL.revokeObjectURL(u); var c=document.querySelector('[data-thumb="'+i.id+'"]'); if(!c) return; var x=c.getContext("2d"), s=Math.max(c.width/im.width,c.height/im.height), w=im.width*s, h=im.height*s, ox=(c.width-w)/2, oy=(c.height-h)/2; x.drawImage(im,ox,oy,w,h); x.strokeStyle="#19C39C"; x.lineWidth=3; x.strokeRect(ox+i.roi.x*w,oy+i.roi.y*h,i.roi.w*w,i.roi.h*h); }); });
+  storageInfo();
+}
+async function storageInfo(){ try{ if(navigator.storage&&navigator.storage.estimate){ var e=await navigator.storage.estimate(); $("storageInfo").textContent="이 폰에서 사용 중인 저장 공간: "+(e.usage/1048576).toFixed(1)+"MB"; } }catch(e){} }
+var editing=null, draftBlob=null, draftImg=null, draftRoi=null, itemDelPending=false;
+function openItemForm(it){
+  editing=it||null; draftBlob=it?it.ref:null; draftRoi=it?Object.assign({},it.roi):null; draftImg=null; itemDelPending=false;
+  $("itemTitle").textContent=it?"품목 수정":"품목 등록"; $("fName").value=it?it.name:""; $("fCat").value=it?it.cat:"캡·오버캡";
+  $("fSens").value=it?it.sens:5; $("fSensV").textContent=$("fSens").value; $("fMin").value=it?it.minSize:8; $("fMinV").textContent=$("fMin").value; $("fKeepOk").checked=!!(it&&it.keepOk);
+  $("itemDel").hidden=!it; $("itemExport").hidden=!it; $("itemDel").textContent="삭제"; $("itemDel").classList.remove("confirming");
+  $("capBox").hidden=true; $("capShot").hidden=true; $("roiBox").hidden=true;
+  if(it){ var u=URL.createObjectURL(it.ref); loadImage(u).then(function(im){ URL.revokeObjectURL(u); draftImg=im; drawRoi(); $("roiBox").hidden=false; }); }
+  $("itemModal").hidden=false;
+}
+function drawRoi(){ if(!draftImg) return; var c=$("roiCanvas"), im=draftImg, k=Math.min(1,900/Math.max(im.width,im.height)); c.width=Math.round(im.width*k); c.height=Math.round(im.height*k);
+  var x=c.getContext("2d"); x.drawImage(im,0,0,c.width,c.height); if(!draftRoi) draftRoi={x:0.15,y:0.15,w:0.7,h:0.7};
+  var r=draftRoi, rx=r.x*c.width, ry=r.y*c.height, rw=r.w*c.width, rh=r.h*c.height;
+  x.fillStyle="rgba(4,8,15,.6)"; x.fillRect(0,0,c.width,ry); x.fillRect(0,ry+rh,c.width,c.height-ry-rh); x.fillRect(0,ry,rx,rh); x.fillRect(rx+rw,ry,c.width-rx-rw,rh);
+  x.strokeStyle="#19C39C"; x.lineWidth=Math.max(2,c.width/220); x.strokeRect(rx,ry,rw,rh); }
+(function(){ var c=$("roiCanvas"), st=null;
+  function pos(e){ var b=c.getBoundingClientRect(); return [Math.min(1,Math.max(0,(e.clientX-b.left)/b.width)), Math.min(1,Math.max(0,(e.clientY-b.top)/b.height))]; }
+  c.addEventListener("pointerdown",function(e){ st=pos(e); c.setPointerCapture(e.pointerId); e.preventDefault(); });
+  c.addEventListener("pointermove",function(e){ if(!st) return; var p=pos(e); draftRoi={x:Math.min(st[0],p[0]),y:Math.min(st[1],p[1]),w:Math.abs(p[0]-st[0]),h:Math.abs(p[1]-st[1])}; drawRoi(); });
+  c.addEventListener("pointerup",function(){ st=null; if(draftRoi&&(draftRoi.w<0.08||draftRoi.h<0.08)){ draftRoi={x:0.15,y:0.15,w:0.7,h:0.7}; drawRoi(); toast("검사 영역이 너무 작습니다. 제품 전체를 덮도록 끌어주세요"); } }); })();
+async function setDraftFromSource(src){
+  var z=srcSize(src), k=Math.min(1,1600/Math.max(z.w,z.h)), c=document.createElement("canvas"); c.width=Math.round(z.w*k); c.height=Math.round(z.h*k); c.getContext("2d").drawImage(src,0,0,c.width,c.height);
+  draftBlob=await canvasBlob(c,0.92); var u=URL.createObjectURL(draftBlob); draftImg=await loadImage(u); URL.revokeObjectURL(u);
+  draftRoi={x:0.15,y:0.15,w:0.7,h:0.7}; drawRoi(); $("roiBox").hidden=false; $("capBox").hidden=true; $("capShot").hidden=true;
+  $("roiHint").textContent="제품 부분을 손가락으로 끌어 초록 상자로 감싸세요. 상자 밖은 검사하지 않습니다.";
+}
+async function saveItem(){
+  var name=$("fName").value.trim(); if(!name){ toast("품목명을 입력하세요"); return; } if(!draftBlob){ toast("양품 기준을 먼저 찍어주세요"); return; }
+  var it=editing?Object.assign({},editing):{id:rid(), createdAt:Date.now()};
+  it.name=name; it.cat=$("fCat").value; it.sens=+$("fSens").value; it.minSize=+$("fMin").value; it.keepOk=$("fKeepOk").checked; it.ref=draftBlob; it.roi=draftRoi||{x:0.15,y:0.15,w:0.7,h:0.7};
+  await dbPut("items", it); delete prepCache[it.id]; await loadItems(); $("itemSel").value=it.id; lsSet("ag_live_item",it.id); refreshTally(); renderItems(); $("itemModal").hidden=true; toast("품목을 저장했습니다");
+}
+async function exportItem(it){ var obj={kind:"inspect-live-item", v:1, name:it.name, cat:it.cat, sens:it.sens, minSize:it.minSize, keepOk:!!it.keepOk, roi:it.roi, ref:await blobToDataURL(it.ref)};
+  downloadBlob(new Blob([JSON.stringify(obj)],{type:"application/json"}), "item_"+it.id+".json"); }
+async function importItems(file){
+  try{ var obj=JSON.parse(await file.text()), list = (obj.ref && obj.roi) ? [obj] : (obj.items||[]);
+    for(var i=0;i<list.length;i++){ var o=list[i]; await dbPut("items",{id:o.id||rid(), createdAt:o.createdAt||Date.now(), name:o.name, cat:o.cat, sens:o.sens, minSize:o.minSize, keepOk:!!o.keepOk, roi:o.roi, ref:await dataURLToBlob(o.ref)}); }
+    prepCache={}; await loadItems(); renderItems(); toast(list.length+"개 품목을 가져왔습니다"); }
+  catch(e){ toast("파일을 읽지 못했습니다. 이 프로그램에서 내보낸 파일인지 확인해주세요"); }
+}
+async function backupAll(){
+  var its=await dbAll("items"), recs=await dbAll("records"), out={kind:"inspect-live-backup", v:1, at:new Date().toISOString(), items:[], records:[]};
+  for(var i=0;i<its.length;i++){ var a=Object.assign({},its[i]); a.ref=await blobToDataURL(a.ref); out.items.push(a); }
+  for(var j=0;j<recs.length;j++){ var r=Object.assign({},recs[j]); if(r.photo) r.photo=await blobToDataURL(r.photo); out.records.push(r); }
+  downloadBlob(new Blob([JSON.stringify(out)],{type:"application/json"}), "backup_"+ymd(new Date())+".json"); toast("품목 "+its.length+"개, 기록 "+recs.length+"건을 백업했습니다");
+}
+async function restoreAll(file){
+  try{ var o=JSON.parse(await file.text()); if(!Array.isArray(o.items)||!Array.isArray(o.records)) throw 0;
+    for(var i=0;i<o.items.length;i++){ var a=o.items[i]; a.ref=await dataURLToBlob(a.ref); await dbPut("items",a); }
+    for(var j=0;j<o.records.length;j++){ var r=o.records[j]; if(r.photo) r.photo=await dataURLToBlob(r.photo); await dbPut("records",r); }
+    prepCache={}; await loadItems(); renderItems(); refreshTally(); toast("백업을 불러왔습니다 (품목 "+o.items.length+"개, 기록 "+o.records.length+"건)"); }
+  catch(e){ toast("백업 파일을 읽지 못했습니다"); }
+}
+
+/* ========== 엑셀 ========== */
+  /* ---------- 엑셀(.xlsx) 파일 직접 생성 (외부 라이브러리 없이) ----------
+     xlsx는 XML 파일 몇 개를 zip으로 묶은 것이라, 무압축 zip + 최소 XML로 직접 만든다.
+     머리글: 진한 남색(#003366) 바탕 흰색 굵은 글씨, 첫 행 고정, 자동 필터, 열 너비 지정.
+     문서 속성의 만든이/마지막 수정한 사람은 사용자가 정한 이름, 생성 도구 흔적은 남기지 않음. */
+  var XLSX_AUTHOR="";
+  function xmlEsc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,""); }
+  function colName(i){ var s=""; i++; while(i>0){ var m=(i-1)%26; s=String.fromCharCode(65+m)+s; i=Math.floor((i-1)/26); } return s; }
+  var CRC_TABLE=(function(){ var t=[]; for(var n=0;n<256;n++){ var c=n; for(var k=0;k<8;k++) c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1); t[n]=c>>>0; } return t; })();
+  function crc32(bytes){ var c=0xFFFFFFFF; for(var i=0;i<bytes.length;i++) c=CRC_TABLE[(c^bytes[i])&0xFF]^(c>>>8); return (c^0xFFFFFFFF)>>>0; }
+  function zipStore(files){ // files: [{name, data:Uint8Array}] → Uint8Array (무압축 zip)
+    var enc=new TextEncoder(), chunks=[], central=[], offset=0;
+    function u16(v){ return [v&255,(v>>>8)&255]; }
+    function u32(v){ return [v&255,(v>>>8)&255,(v>>>16)&255,(v>>>24)&255]; }
+    var d=new Date(), dosTime=(d.getHours()<<11)|(d.getMinutes()<<5)|(Math.floor(d.getSeconds()/2)), dosDate=((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate();
+    files.forEach(function(f){
+      var nameB=enc.encode(f.name), crc=crc32(f.data), size=f.data.length;
+      var head=[].concat([0x50,0x4b,0x03,0x04],u16(20),u16(0x0800),u16(0),u16(dosTime),u16(dosDate),u32(crc),u32(size),u32(size),u16(nameB.length),u16(0));
+      chunks.push(new Uint8Array(head), nameB, f.data);
+      central.push(new Uint8Array([].concat([0x50,0x4b,0x01,0x02],u16(20),u16(20),u16(0x0800),u16(0),u16(dosTime),u16(dosDate),u32(crc),u32(size),u32(size),u16(nameB.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(offset))), nameB);
+      offset+=head.length+nameB.length+size;
+    });
+    var cdSize=central.reduce(function(a,c){return a+c.length;},0);
+    var end=new Uint8Array([].concat([0x50,0x4b,0x05,0x06],u16(0),u16(0),u16(files.length),u16(files.length),u32(cdSize),u32(offset),u16(0)));
+    var all=chunks.concat(central,[end]), total=all.reduce(function(a,c){return a+c.length;},0), out=new Uint8Array(total), p=0;
+    all.forEach(function(c){ out.set(c,p); p+=c.length; });
+    return out;
+  }
+  // sheets: [{name, rows:[[셀값...]], widths:[문자수...], wrap:[열번호...]}]  — rows[0]은 머리글
+  function buildXlsx(sheets){
+    var enc=new TextEncoder(), now=new Date().toISOString().replace(/\.\d+Z$/,"Z"), files=[];
+    function add(name, xml){ files.push({name:name, data:enc.encode(xml)}); }
+    var X='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+    add("[Content_Types].xml", X+'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>'+
+      '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'+
+      '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'+
+      '<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>'+
+      sheets.map(function(s,i){ return '<Override PartName="/xl/worksheets/sheet'+(i+1)+'.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'; }).join("")+'</Types>');
+    add("_rels/.rels", X+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'+
+      '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>');
+    add("docProps/core.xml", X+'<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'+
+      '<dc:creator>'+xmlEsc(XLSX_AUTHOR)+'</dc:creator><cp:lastModifiedBy>'+xmlEsc(XLSX_AUTHOR)+'</cp:lastModifiedBy>'+
+      '<dcterms:created xsi:type="dcterms:W3CDTF">'+now+'</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">'+now+'</dcterms:modified></cp:coreProperties>');
+    add("xl/workbook.xml", X+'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>'+
+      sheets.map(function(s,i){ return '<sheet name="'+xmlEsc(s.name)+'" sheetId="'+(i+1)+'" r:id="rId'+(i+1)+'"/>'; }).join("")+'</sheets>'+
+      (function(){ var dn=sheets.map(function(s,i){ var cols=(s.rows[0]||[]).length; if(s.rows.length<2||!cols) return ""; return '<definedName name="_xlnm._FilterDatabase" localSheetId="'+i+'" hidden="1">\''+xmlEsc(s.name).replace(/'/g,"''")+'\'!$A$1:$'+colName(cols-1)+'$'+s.rows.length+'</definedName>'; }).join(""); return dn?'<definedNames>'+dn+'</definedNames>':''; })()+'</workbook>');
+    add("xl/_rels/workbook.xml.rels", X+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+      sheets.map(function(s,i){ return '<Relationship Id="rId'+(i+1)+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet'+(i+1)+'.xml"/>'; }).join("")+
+      '<Relationship Id="rId'+(sheets.length+1)+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>');
+    // 스타일: 0 기본 / 1 머리글(남색·흰 굵은 글씨) / 2 본문(테두리, 위쪽 정렬) / 3 본문 줄바꿈
+    add("xl/styles.xml", X+'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
+      '<fonts count="2"><font><sz val="10"/><name val="맑은 고딕"/><family val="3"/><charset val="129"/></font><font><b/><sz val="10"/><color rgb="FFFFFFFF"/><name val="맑은 고딕"/><family val="3"/><charset val="129"/></font></fonts>'+
+      '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF003366"/><bgColor indexed="64"/></patternFill></fill></fills>'+
+      '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFBFBFBF"/></left><right style="thin"><color rgb="FFBFBFBF"/></right><top style="thin"><color rgb="FFBFBFBF"/></top><bottom style="thin"><color rgb="FFBFBFBF"/></bottom><diagonal/></border></borders>'+
+      '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'+
+      '<cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'+
+      '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'+
+      '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top"/></xf>'+
+      '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf></cellXfs>'+
+      '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>');
+    sheets.forEach(function(s,i){
+      var rows=s.rows, cols=(rows[0]||[]).length, wrap=s.wrap||[];
+      var colsXml = (s.widths&&s.widths.length) ? '<cols>'+s.widths.map(function(w,ci){ return '<col min="'+(ci+1)+'" max="'+(ci+1)+'" width="'+w+'" customWidth="1"/>'; }).join("")+'</cols>' : '';
+      var data = rows.map(function(r,ri){
+        return '<row r="'+(ri+1)+'"'+(ri===0?' ht="22" customHeight="1"':'')+'>'+r.map(function(v,ci){
+          var ref=colName(ci)+(ri+1), st= ri===0 ? 1 : (wrap.indexOf(ci)>=0 ? 3 : 2);
+          if(typeof v==="number" && isFinite(v)) return '<c r="'+ref+'" s="'+st+'"><v>'+v+'</v></c>';
+          if(v==null || v==="") return '<c r="'+ref+'" s="'+st+'"/>';
+          return '<c r="'+ref+'" s="'+st+'" t="inlineStr"><is><t xml:space="preserve">'+xmlEsc(v)+'</t></is></c>';
+        }).join("")+'</row>';
+      }).join("");
+      add("xl/worksheets/sheet"+(i+1)+".xml", X+'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'+
+        '<sheetViews><sheetView workbookViewId="0"'+(i===0?' tabSelected="1"':'')+'><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/></sheetView></sheetViews>'+
+        '<sheetFormatPr defaultRowHeight="16.5"/>'+colsXml+'<sheetData>'+data+'</sheetData>'+
+        ((rows.length>1&&cols) ? '<autoFilter ref="A1:'+colName(cols-1)+rows.length+'"/>' : '')+
+        '<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/></worksheet>');
+    });
+    return zipStore(files);
+  }
+
+
+/* ========== 이벤트 ========== */
+document.querySelectorAll(".nav button").forEach(function(b){ b.addEventListener("click",function(){ go(b.dataset.go); }); });
+$("camBtn").addEventListener("click", startCamera);
+$("torchBtn").addEventListener("click", toggleTorch);
+$("ghostBtn").addEventListener("click", function(){ settings.ghost=!settings.ghost; lsSet("ag_live_settings",settings); $("ghostBtn").classList.toggle("on",settings.ghost); });
+$("judgeBtn").addEventListener("click", function(){ var it=curItem(); if(!it) return; if(!running){ $("photoInput").click(); return; }
+  if(!present(lastRes)){ toast("검사 영역에서 제품을 찾지 못했습니다"); return; } decide([lastRes], it, "수동"); });
+$("photoBtn").addEventListener("click", function(){ $("photoInput").click(); });
+$("photoInput").addEventListener("change", function(e){ var f=e.target.files&&e.target.files[0]; e.target.value=""; if(f) judgePhoto(f); });
+["swAuto","swSave","swSound","swFixed"].forEach(function(id){ var key={swAuto:"auto",swSave:"save",swSound:"sound",swFixed:"fixed"}[id]; $(id).checked=!!settings[key];
+  $(id).addEventListener("change",function(){ settings[key]=$(id).checked; lsSet("ag_live_settings",settings); }); });
+$("ghostBtn").classList.toggle("on",!!settings.ghost);
+$("itemSel").addEventListener("change", function(){ lsSet("ag_live_item",$("itemSel").value); phase="armed"; stable=0; votes=[]; refreshTally(); });
+$("fixOk").addEventListener("click", function(){ fixLast("OK"); });
+$("fixNg").addEventListener("click", function(){ fixLast("NG"); });
+$("typeChips").addEventListener("click", async function(e){ var c=e.target.closest(".chip"); if(!c) return; var t=c.dataset.type, i=chosenTypes.indexOf(t); if(i>=0) chosenTypes.splice(i,1); else chosenTypes.push(t); c.setAttribute("aria-pressed",i<0?"true":"false");
+  if(lastRecord && lastRecord.v==="NG"){ lastRecord.types=chosenTypes.slice(); await dbPut("records",lastRecord); } });
+$("periodChips").addEventListener("click", function(e){ var c=e.target.closest(".chip"); if(!c) return; period=c.dataset.period; renderRecords(); });
+$("recItemSel").addEventListener("change", function(){ recItem=$("recItemSel").value; renderRecords(); });
+$("recList").addEventListener("click", function(e){ var r=e.target.closest(".rec"); if(r) openRecord(r.dataset.id); });
+$("recClose").addEventListener("click", function(){ $("recModal").hidden=true; });
+$("recDel").addEventListener("click", async function(){ if(!openRec) return; if(!delPending){ delPending=true; $("recDel").textContent="정말 삭제? 다시 누르기"; $("recDel").classList.add("confirming"); setTimeout(function(){ delPending=false; $("recDel").textContent="기록 삭제"; $("recDel").classList.remove("confirming"); },4000); return; }
+  await dbDel("records",openRec.id); $("recModal").hidden=true; renderRecords(); refreshTally(); toast("기록을 삭제했습니다"); });
+$("exportBtn").addEventListener("click", exportXlsx);
+$("newItemBtn").addEventListener("click", function(){ openItemForm(null); });
+$("importItemBtn").addEventListener("click", function(){ $("importItemInput").click(); });
+$("importItemInput").addEventListener("change", function(e){ var f=e.target.files&&e.target.files[0]; e.target.value=""; if(f) importItems(f); });
+$("itemList").addEventListener("click", function(e){ var a=e.target.closest("[data-edit]"); if(a){ openItemForm(items.find(function(i){ return i.id===a.dataset.edit; })); return; }
+  var u=e.target.closest("[data-use]"); if(u){ $("itemSel").value=u.dataset.use; lsSet("ag_live_item",u.dataset.use); refreshTally(); go("live"); } });
+$("itemClose").addEventListener("click", function(){ $("itemModal").hidden=true; });
+$("refCamBtn").addEventListener("click", async function(){ if(!stream){ await startCamera(); if(!stream) { toast("카메라를 켜지 못했습니다. '사진 파일에서'를 이용하세요"); return; } } $("capVideo").srcObject=stream; $("capBox").hidden=false; $("capShot").hidden=false; $("roiBox").hidden=true; try{ await $("capVideo").play(); }catch(e){} });
+$("capShot").addEventListener("click", function(){ setDraftFromSource($("capVideo")); });
+$("refFileBtn").addEventListener("click", function(){ $("refFileInput").click(); });
+$("refFileInput").addEventListener("change", async function(e){ var f=e.target.files&&e.target.files[0]; e.target.value=""; if(!f) return; var u=URL.createObjectURL(f), im=await loadImage(u); await setDraftFromSource(im); URL.revokeObjectURL(u); });
+$("fSens").addEventListener("input", function(){ $("fSensV").textContent=this.value; });
+$("fMin").addEventListener("input", function(){ $("fMinV").textContent=this.value; });
+$("itemSave").addEventListener("click", saveItem);
+$("itemExport").addEventListener("click", function(){ if(editing) exportItem(editing); });
+$("itemDel").addEventListener("click", async function(){ if(!editing) return; if(!itemDelPending){ itemDelPending=true; $("itemDel").textContent="정말 삭제? 다시 누르기"; $("itemDel").classList.add("confirming"); setTimeout(function(){ itemDelPending=false; $("itemDel").textContent="삭제"; $("itemDel").classList.remove("confirming"); },4000); return; }
+  await dbDel("items",editing.id); delete prepCache[editing.id]; await loadItems(); renderItems(); $("itemModal").hidden=true; toast("품목을 삭제했습니다 (지난 기록은 남습니다)"); });
+$("backupBtn").addEventListener("click", backupAll);
+$("authorInput").value=lsGet("ag_live_author","");
+$("authorInput").addEventListener("change", function(){ lsSet("ag_live_author", $("authorInput").value.trim()); toast("엑셀 작성자 이름을 저장했습니다"); });
+$("restoreBtn").addEventListener("click", function(){ $("restoreInput").click(); });
+$("restoreInput").addEventListener("change", function(e){ var f=e.target.files&&e.target.files[0]; e.target.value=""; if(f) restoreAll(f); });
+["itemModal","recModal"].forEach(function(id){ $(id).addEventListener("click",function(e){ if(e.target.id===id) $(id).hidden=true; }); });
+
+/* ========== 시작 ========== */
+(async function init(){
+  try{ idb=await openDB(); }catch(e){ toast("이 브라우저에서는 기록을 저장할 수 없습니다"); return; }
+  try{ if(navigator.storage&&navigator.storage.persist) navigator.storage.persist(); }catch(e){}
+  await loadItems();
+  if(!items.length){ $("vSub").textContent="'품목·백업' 탭에서 거치대에 올린 양품을 기준으로 등록하세요"; }
+  window.__ag={analyzeFrame:analyzeFrame, prepareRef:prepareRef, state:function(){ return {phase:phase, stable:stable, motion:motion, ncc:lastRes&&lastRes.ncc}; }};
+})();
+})();
+</script>
+</body>
+</html>
