@@ -150,6 +150,32 @@ td{padding:9px 10px; border-top:1px solid var(--line); white-space:nowrap;}
 .sheet-h b{font-size:17px;}
 .form{display:grid; gap:14px;}
 .toast{position:fixed; left:50%; transform:translateX(-50%); bottom:calc(var(--nav-h) + 16px + env(safe-area-inset-bottom,0px)); z-index:50; background:#E9EEF6; color:#0A1220; font-weight:700; font-size:14px; padding:10px 16px; border-radius:999px; box-shadow:0 8px 24px rgba(0,0,0,.4); max-width:calc(100% - 32px); text-align:center;}
+
+/* v2 추가 */
+.stage.picking{outline:3px solid var(--warn); outline-offset:-3px;}
+.stage.picking canvas.ov{pointer-events:auto; cursor:crosshair;}
+.pickmsg{position:absolute; left:12px; right:12px; bottom:12px; background:rgba(6,12,22,.82); border:1px solid rgba(245,181,71,.5); color:var(--warn); border-radius:12px; padding:9px 12px; font-size:13.5px; font-weight:700; text-align:center;}
+.verdict{grid-template-columns:auto 1fr auto;}
+.verdict .act{display:flex;}
+.objs{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
+.obj{font-size:12.5px; font-weight:700; padding:4px 10px; border-radius:999px; border:1px solid var(--line); background:var(--panel);}
+.obj.ok{color:var(--ok); border-color:rgba(43,212,154,.45);} .obj.ng{color:var(--ng); border-color:rgba(255,90,100,.5);} .obj.wait{color:var(--warn); border-color:rgba(245,181,71,.45);}
+.status-line{display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:10px; font-size:13px; color:var(--muted);}
+.status-line b{color:var(--text); font-weight:700;}
+.status-line .warn{color:var(--warn);}
+.refgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(54px,1fr)); gap:6px; margin-top:8px; max-height:220px; overflow-y:auto;}
+.refgrid button{padding:0; border:1px solid var(--line); border-radius:8px; background:#04080F; aspect-ratio:1; overflow:hidden; cursor:pointer; position:relative;}
+.refgrid canvas{width:100%; height:100%; display:block;}
+.refbtns{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:8px;}
+.refbtns .btn{font-size:13px; min-height:52px; padding:6px; flex-direction:column; gap:2px;}
+.rec-live{position:absolute; left:10px; top:10px; background:rgba(6,12,22,.78); border:1px solid rgba(255,90,100,.6); color:#fff; border-radius:999px; padding:5px 12px; font-size:13px; font-weight:700;}
+.rec-live i{display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--ng); margin-right:6px; vertical-align:1px;}
+.glove-list{display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;}
+.glove{display:inline-flex; align-items:center; gap:7px; border:1px solid var(--line); background:var(--panel); border-radius:999px; padding:4px 6px 4px 5px; font-size:13px;}
+.glove i{width:20px; height:20px; border-radius:50%; border:1px solid rgba(255,255,255,.3);}
+.glove button{border:none; background:none; color:var(--muted); font-size:15px; cursor:pointer; padding:0 4px;}
+.progress{height:6px; border-radius:99px; background:var(--panel-2); overflow:hidden; margin-top:8px;}
+.progress i{display:block; height:100%; width:0; background:var(--brand); transition:width .2s;}
 @media (max-width:380px){ .row2{grid-template-columns:1fr;} .verdict .big{font-size:28px;} }
 </style>
 </head>
@@ -171,20 +197,27 @@ td{padding:9px 10px; border-top:1px solid var(--line); white-space:nowrap;}
     <video id="video" playsinline muted autoplay></video>
     <canvas class="ov" id="overlay"></canvas>
     <div class="cam-off" id="camOff">
-      <p id="camMsg" style="margin:0">카메라를 켜면 검사 영역에 제품을 올리는 즉시 자동으로 판정합니다.</p>
+      <p id="camMsg" style="margin:0">카메라를 켜고 제품을 올려 돌려보세요. 화면 속 제품마다 바로 판정합니다.</p>
       <button type="button" class="btn primary" id="camBtn">카메라 켜기</button>
     </div>
     <div class="banner"><span class="state wait" id="stateTag" hidden>대기</span><span class="fps" id="fps" hidden></span></div>
+    <div class="pickmsg" id="pickMsg" hidden>화면에서 장갑 부분을 누르세요 · 취소하려면 '장갑 색'을 다시 누르기</div>
   </div>
 
-  <div class="verdict idle" id="verdict"><div class="big" id="vBig">대기 중</div><div class="sub" id="vSub">품목을 고르고 카메라를 켜세요</div></div>
+  <div class="verdict idle" id="verdict">
+    <div class="big" id="vBig">대기 중</div>
+    <div class="sub" id="vSub">품목을 고르고 카메라를 켜세요</div>
+    <div class="act"><button type="button" class="btn small" id="finishBtn" hidden>모두 확정</button></div>
+  </div>
+  <div class="objs" id="objChips"></div>
 
   <div class="fix" id="fixBox" hidden>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px">
-      <button type="button" class="btn ok small" id="fixOk">양품으로 정정</button>
-      <button type="button" class="btn ng small" id="fixNg">불량으로 정정</button>
+      <button type="button" class="btn ok small" id="fixOk">직전 기록을 양품으로</button>
+      <button type="button" class="btn ng small" id="fixNg">직전 기록을 불량으로</button>
     </div>
     <div class="types" id="typeChips"></div>
+    <button type="button" class="btn small" id="learnBtn" hidden style="width:100%; margin-top:8px">이 모습을 양품 기준에 추가 — 같은 오판정을 막습니다</button>
   </div>
 
   <div class="tally">
@@ -195,20 +228,20 @@ td{padding:9px 10px; border-top:1px solid var(--line); white-space:nowrap;}
   <p class="hint" style="margin-top:6px">오늘 · 선택한 품목 기준</p>
 
   <div class="controls">
-    <button type="button" class="btn" id="judgeBtn" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M8.5 12.5l2.3 2.3 4.7-5"/></svg>지금 판정</button>
+    <button type="button" class="btn" id="bgBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 15l5-4 4 3 3-2 6 4"/></svg>바탕 등록</button>
+    <button type="button" class="btn" id="gloveBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 11V5.5a1.5 1.5 0 0 1 3 0V10M10 9V4.5a1.5 1.5 0 0 1 3 0V10M13 9.5V5.5a1.5 1.5 0 0 1 3 0V12M16 10a1.5 1.5 0 0 1 3 0v4a7 7 0 0 1-7 7h-1a6 6 0 0 1-5-3l-2.5-4a1.5 1.5 0 0 1 2.5-1.6L7 14"/></svg>장갑 색</button>
     <button type="button" class="btn" id="torchBtn" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 2h6l-1 7h-4z"/><path d="M10 9h4v11a2 2 0 0 1-4 0z"/></svg>조명</button>
-    <button type="button" class="btn" id="ghostBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="12" height="12" rx="2"/><rect x="9" y="8" width="12" height="12" rx="2" stroke-dasharray="3 2"/></svg>기준 겹쳐보기</button>
     <button type="button" class="btn" id="photoBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 9"/></svg>사진으로 판정</button>
   </div>
   <input type="file" id="photoInput" accept="image/*" hidden>
+  <div class="status-line" id="statusLine"></div>
 
   <div class="switches">
-    <label><input type="checkbox" id="swAuto" checked> 자동 판정</label>
     <label><input type="checkbox" id="swSave" checked> 자동 저장</label>
     <label><input type="checkbox" id="swSound" checked> 소리·진동</label>
-    <label><input type="checkbox" id="swFixed" checked> 거치대 고정</label>
+    <label><input type="checkbox" id="swCareful"> 신중 모드 (3장 연속 확인)</label>
   </div>
-  <p class="hint" style="margin-top:10px">제품을 올려두면 흔들림이 멈추는 순간 3장을 연속으로 보고 다수결로 판정합니다. 제품을 내리면 다음 제품을 기다립니다.</p>
+  <p class="hint" style="margin-top:10px">여러 개를 한꺼번에 올려도 되고, 손으로 돌려도 됩니다. 결함이 연속 2장(신중 모드 3장)에서 같은 제품에 보이면 즉시 빨간색으로 알리고, 제품이 화면 밖으로 나가면 그 제품의 결과를 기록합니다.</p>
 </section>
 
 <!-- 기록 -->
@@ -236,7 +269,7 @@ td{padding:9px 10px; border-top:1px solid var(--line); white-space:nowrap;}
 <!-- 품목·설정 -->
 <section id="view-items" hidden>
   <div class="section-h" style="margin-top:6px">검사 품목 <span class="cnt" id="itemCnt"></span></div>
-  <p class="hint">품목마다 거치대에 올린 양품 사진 한 장과 검사 영역을 정해두면, 실시간 영상을 그 기준과 비교합니다.</p>
+  <p class="hint">품목마다 양품을 여러 각도로 등록해둡니다. 카메라 앞에서 양품을 한 바퀴 돌리며 녹화하거나, 사진 여러 장·동영상 파일로 등록할 수 있습니다.</p>
   <div class="items" id="itemList" style="margin-top:12px"></div>
   <div style="display:grid; grid-template-columns:2fr 1fr; gap:8px; margin-top:14px">
     <button type="button" class="btn primary" id="newItemBtn">+ 품목 등록</button>
@@ -244,14 +277,32 @@ td{padding:9px 10px; border-top:1px solid var(--line); white-space:nowrap;}
   </div>
   <input type="file" id="importItemInput" accept=".json,application/json" hidden>
 
-  <div class="card" style="margin-top:18px">
+  <div class="section-h">검사 자리 설정</div>
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap">
+      <div><b style="font-size:14px">바탕</b><div class="hint" id="bgInfo">등록 안 됨</div></div>
+      <button type="button" class="btn small ghost" id="bgClear">바탕 지우기</button>
+    </div>
+    <div style="margin-top:14px"><b style="font-size:14px">제외할 색 (장갑 등)</b>
+      <div class="glove-list" id="gloveList"></div>
+      <label class="toggle" style="margin-top:10px"><input type="checkbox" id="swSkin" checked> 맨손(피부색)도 제품에서 제외</label>
+    </div>
+    <label class="toggle" style="margin-top:14px; align-items:flex-start"><input type="checkbox" id="swLock" checked style="margin-top:3px; flex:none"> <span>바탕 등록 때 카메라 밝기·색감·초점 고정<br><span class="hint">흰 제품이 들어올 때 화면 전체가 어두워지는 현상을 막습니다 (폰이 지원하는 경우)</span></span></label>
+    <label class="toggle" style="margin-top:10px"><input type="checkbox" id="swAdapt" checked> 빈 화면일 때 바탕을 조금씩 자동 보정</label>
+    <div style="margin-top:14px"><span class="label">바탕과 제품 구분 정도 (낮을수록 바탕과 비슷한 색도 제품으로 봄)</span><div class="range"><input type="range" id="segT" min="30" max="120" step="5" value="70" aria-label="바탕 구분"><b id="segTV">70</b></div></div>
+  </div>
+
+  <div class="card" style="margin-top:12px">
     <b style="font-size:14px">정확하게 쓰는 요령</b>
     <ul class="hint" style="margin:6px 0 0; padding-left:18px; line-height:1.75">
-      <li>폰을 거치대에 고정하고, 제품 놓는 자리에 테이프로 표시해두세요.</li>
+      <li>폰을 거치대에 고정하고, 빈 자리를 비춘 상태에서 '바탕 등록'을 먼저 누르세요.</li>
       <li>흰 캡은 검정 무광 바탕, 어두운 제품은 흰 바탕이 좋습니다.</li>
-      <li>그림자가 덜 지는 LED 면조명을 쓰고, 창가 햇빛은 피하세요.</li>
-      <li>조명·바탕·거치대 위치가 바뀌면 양품 기준을 다시 찍으세요.</li>
-      <li>같은 품목을 다른 폰에서 쓰려면 '내보내기'한 파일을 그 폰에서 '품목 가져오기' 하세요.</li>
+      <li>장갑은 제품과 확실히 다른 색(파랑·검정 니트릴)을 끼고 '장갑 색'으로 한 번 눌러 등록하세요.</li>
+      <li>기준 녹화는 한 바퀴에 15~20초 정도로 천천히 돌리세요. 빠르면 '조금 더 천천히' 안내가 뜹니다. 각도 사이가 비면 오판정의 원인이 됩니다.</li>
+      <li>원형 제품은 검사 때도 천천히 돌리면 앞·옆이 모두 검사됩니다. 회전판을 쓰면 가장 안정적입니다.</li>
+      <li>양품인데 불량으로 잡히면 '직전 기록을 양품으로' → '이 모습을 양품 기준에 추가'를 누르세요. 같은 오판정이 바로 줄어듭니다.</li>
+      <li>기준 녹화 때와 같은 높이·거리에서 검사하세요. 제품이 훨씬 크게 보이면 '붙어 있음'으로 판단할 수 있습니다.</li>
+      <li>조명·바탕·거치대 높이가 바뀌면 바탕을 다시 등록하고, 많이 바뀌면 기준도 다시 녹화하세요.</li>
     </ul>
   </div>
 
@@ -272,28 +323,34 @@ td{padding:9px 10px; border-top:1px solid var(--line); white-space:nowrap;}
 <nav class="nav" aria-label="화면 이동"><div class="nav-in">
   <button type="button" data-go="live" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 8V5h3M17 5h3v3M20 16v3h-3M7 19H4v-3"/><circle cx="12" cy="12" r="3.5"/></svg>검사</button>
   <button type="button" data-go="records"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>기록</button>
-  <button type="button" data-go="items"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>품목·백업</button>
+  <button type="button" data-go="items"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>품목·설정</button>
 </div></nav>
 
 <div class="modal" id="itemModal" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="itemTitle">
   <div class="sheet-h"><b id="itemTitle">품목 등록</b><button type="button" class="btn small ghost" id="itemClose">닫기</button></div>
   <div class="form">
-    <div><label class="label" for="fName">품목명</label><input class="field" id="fName" placeholder="예: 오버캡 화이트 50mm"></div>
+    <div><label class="label" for="fName">품목명</label><input class="field" id="fName" placeholder="예: 원형 캡 화이트 50mm"></div>
     <div><label class="label" for="fCat">분류</label><select class="field" id="fCat"><option>캡·오버캡</option><option>펌프·밸브·노즐</option><option>사출</option><option>기타</option></select></div>
     <div>
-      <span class="label">양품 기준</span>
-      <div style="display:flex; gap:8px; flex-wrap:wrap">
-        <button type="button" class="btn small" id="refCamBtn">카메라 화면으로 찍기</button>
-        <button type="button" class="btn small ghost" id="refFileBtn">사진 파일에서</button>
+      <span class="label">양품 기준 장면 <b id="refCount" style="color:var(--text)">0장</b></span>
+      <div class="refbtns">
+        <button type="button" class="btn" id="refRecBtn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg><span id="refRecTxt">돌리며 녹화</span></button>
+        <button type="button" class="btn" id="refPhotosBtn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="6" width="14" height="14" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v12"/></svg>사진 여러 장</button>
+        <button type="button" class="btn" id="refVideoBtn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg>동영상 파일</button>
       </div>
-      <input type="file" id="refFileInput" accept="image/*" hidden>
-      <div class="cap-box" id="capBox" hidden><video id="capVideo" playsinline muted autoplay></video></div>
-      <button type="button" class="btn primary" id="capShot" hidden style="width:100%; margin-top:8px">이 화면을 양품 기준으로 저장</button>
-      <div class="roi-box" id="roiBox" hidden><canvas id="roiCanvas"></canvas></div>
-      <p class="hint" id="roiHint" style="margin-top:6px">거치대에 양품을 올리고 '카메라 화면으로 찍기'를 누르세요. 찍은 뒤 제품 부분을 손가락으로 끌어 검사 영역을 정합니다.</p>
+      <input type="file" id="refPhotosInput" accept="image/*" multiple hidden>
+      <input type="file" id="refVideoInput" accept="video/*" hidden>
+      <div class="cap-box" id="capBox" hidden><video id="capVideo" playsinline muted autoplay></video><canvas class="ov" id="capOv" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"></canvas><span class="rec-live" id="recLive"><i></i><span id="recLiveTxt">녹화 중</span></span></div>
+      <div class="progress" id="refProg" hidden><i></i></div>
+      <p class="hint" id="refHint" style="margin-top:8px">양품 하나를 검사할 자리에 두고 '돌리며 녹화'를 누른 뒤, 천천히 한 바퀴(앞·옆·윗면 등 검사할 면 모두) 돌려주세요. 서로 다른 모습만 골라 자동으로 저장합니다.</p>
+      <div class="refgrid" id="refGrid"></div>
+      <div style="display:flex; justify-content:space-between; gap:8px; margin-top:6px"><span class="hint">장면을 누르면 지워집니다</span><button type="button" class="btn small ghost danger" id="refClear">모두 지우기</button></div>
     </div>
     <div><span class="label">감도 (높을수록 작은 차이도 잡지만 오판정이 늘어남)</span><div class="range"><input type="range" id="fSens" min="1" max="10" value="5" aria-label="감도"><b id="fSensV">5</b></div></div>
     <div><span class="label">무시할 최소 크기 (이보다 작은 점은 먼지로 봄)</span><div class="range"><input type="range" id="fMin" min="2" max="80" value="8" aria-label="최소 크기"><b id="fMinV">8</b></div></div>
+    <div><label class="label" for="fMinCov">양품 확정에 필요한 관찰 범위 (돌려본 각도 비율)</label>
+      <select class="field" id="fMinCov"><option value="0">제한 없음 — 보인 면만으로 판정</option><option value="20">20% 이상</option><option value="35">35% 이상</option><option value="50">50% 이상</option><option value="70">70% 이상 — 거의 한 바퀴</option></select>
+      <p class="hint" style="margin-top:5px">기준 장면 중 몇 %를 실제로 비춰봤는지입니다. 부족한 채 내리면 '부분 검사'로 기록하고 경고음을 냅니다.</p></div>
     <label class="toggle"><input type="checkbox" id="fKeepOk"> 양품도 사진을 저장 (용량을 더 씀)</label>
     <div style="display:flex; gap:8px; flex-wrap:wrap">
       <button type="button" class="btn danger" id="itemDel" hidden>삭제</button>
@@ -306,11 +363,266 @@ td{padding:9px 10px; border-top:1px solid var(--line); white-space:nowrap;}
 <div class="modal" id="recModal" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="recTitle">
   <div class="sheet-h"><b id="recTitle">검사 기록</b><button type="button" class="btn small ghost" id="recClose">닫기</button></div>
   <div id="recBody"></div>
-  <div style="display:flex; justify-content:flex-end; margin-top:14px"><button type="button" class="btn small danger" id="recDel">기록 삭제</button></div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px">
+    <button type="button" class="btn small ok" id="recToOk">양품으로 바꾸기</button>
+    <button type="button" class="btn small ng" id="recToNg">불량으로 바꾸기</button>
+    <span style="flex:1"></span>
+    <button type="button" class="btn small danger" id="recDel">기록 삭제</button>
+  </div>
 </div></div>
 
 <div class="toast" id="toast" hidden></div>
 
+<script>
+/* ===================== 검사 엔진 v2 =====================
+   ① 바탕(빈 거치대)과 비교해 화면 속 제품들을 하나씩 분리 — 손 피부색·등록한 장갑 색은 제품에서 뺌
+   ② 제품마다 잘라내 같은 크기(긴 변 CAN)로 맞춤
+   ③ 양품 기준 장면 묶음(돌려가며 녹화한 여러 각도) 중 가장 비슷한 장면 3개를 고르고
+   ④ 위치·크기·회전을 맞춘 뒤 색 차이(주변 2픽셀 허용)와 모양 차이(빠진 부분·튀어나온 부분)를 찾음
+   ⑤ 세 장면 모두와 다른 부분만 결함으로 남김 — 각도가 살짝 달라 생기는 가짜 차이를 지움 */
+var ENG=(function(){
+var SEG_W=360, HI_W=960, CAN=224;
+var station={bg:null, bgW:0, bgH:0, skin:true, gloves:[], T:70}, noBg=false;
+function makeCanvas(w,h){ var c=document.createElement("canvas"); c.width=w; c.height=h; return c; }
+function ctx2(c){ return c.getContext("2d",{willReadFrequently:true}); }
+function srcSize(s){ return {w:s.videoWidth||s.naturalWidth||s.width, h:s.videoHeight||s.naturalHeight||s.height}; }
+var segC=makeCanvas(2,2), hiC=makeCanvas(2,2);
+function drawTo(c, src, w){ var z=srcSize(src), h=Math.round(z.h*w/z.w); if(c.width!==w||c.height!==h){ c.width=w; c.height=h; } var x=ctx2(c); x.drawImage(src,0,0,w,h); return {w:w,h:h,d:x.getImageData(0,0,w,h).data}; }
+function gray(d,n){ var g=new Float32Array(n); for(var i=0,j=0;i<n;i++,j+=4) g[i]=0.299*d[j]+0.587*d[j+1]+0.114*d[j+2]; return g; }
+function boxBlur(src,w,h){ var t=new Float32Array(w*h), o=new Float32Array(w*h), x,y,i;
+  for(y=0;y<h;y++) for(x=0;x<w;x++){ i=y*w+x; var a=src[i]; t[i]=((x>0?src[i-1]:a)+a+(x<w-1?src[i+1]:a))/3; }
+  for(y=0;y<h;y++) for(x=0;x<w;x++){ i=y*w+x; var b=t[i]; o[i]=((y>0?t[i-w]:b)+b+(y<h-1?t[i+w]:b))/3; } return o; }
+function gradMag(g,w,h){ var o=new Float32Array(w*h); for(var y=1;y<h-1;y++) for(var x=1;x<w-1;x++){ var i=y*w+x;
+  var gx=(g[i-w+1]+2*g[i+1]+g[i+w+1])-(g[i-w-1]+2*g[i-1]+g[i+w-1]), gy=(g[i+w-1]+2*g[i+w]+g[i+w+1])-(g[i-w-1]+2*g[i-w]+g[i-w+1]); o[i]=Math.sqrt(gx*gx+gy*gy)/4; } return o; }
+function down(src,w,h,f){ var nw=Math.max(1,Math.floor(w/f)), nh=Math.max(1,Math.floor(h/f)), o=new Float32Array(nw*nh);
+  for(var y=0;y<nh;y++) for(var x=0;x<nw;x++){ var s=0; for(var yy=0;yy<f;yy++) for(var xx=0;xx<f;xx++) s+=src[(y*f+yy)*w+x*f+xx]; o[y*nw+x]=s/(f*f); } return {d:o,w:nw,h:nh}; }
+function dilate(m,w,h,r){ if(r<=0) return m.slice(); var t=new Uint8Array(w*h), o=new Uint8Array(w*h), x,y,k,v;
+  for(y=0;y<h;y++){ var row=y*w; for(x=0;x<w;x++){ v=0; for(k=-r;k<=r&&!v;k++){ var xx=x+k; if(xx>=0&&xx<w&&m[row+xx]) v=1; } t[row+x]=v; } }
+  for(x=0;x<w;x++) for(y=0;y<h;y++){ v=0; for(k=-r;k<=r&&!v;k++){ var yy=y+k; if(yy>=0&&yy<h&&t[yy*w+x]) v=1; } o[y*w+x]=v; } return o; }
+function erode(m,w,h,r){ var inv=new Uint8Array(w*h), i; for(i=0;i<inv.length;i++) inv[i]=m[i]?0:1; var d=dilate(inv,w,h,r); for(i=0;i<d.length;i++) d[i]=d[i]?0:1; return d; }
+/* 실루엣 안쪽 구멍 메우기 — 바탕색과 비슷한 어두운 흑점·이물이 '바탕'으로 빠져 놓치는 것을 막음 */
+function fillHoles(m,w,h){ var n=w*h, seen=new Uint8Array(n), st=[], i;
+  for(var x=0;x<w;x++){ if(!m[x]){ seen[x]=1; st.push(x);} var b=(h-1)*w+x; if(!m[b]&&!seen[b]){ seen[b]=1; st.push(b);} }
+  for(var y=0;y<h;y++){ var l=y*w, r=y*w+w-1; if(!m[l]&&!seen[l]){ seen[l]=1; st.push(l);} if(!m[r]&&!seen[r]){ seen[r]=1; st.push(r);} }
+  while(st.length){ var p=st.pop(), px=p%w; if(px>0&&!m[p-1]&&!seen[p-1]){seen[p-1]=1;st.push(p-1);} if(px<w-1&&!m[p+1]&&!seen[p+1]){seen[p+1]=1;st.push(p+1);}
+    if(p>=w&&!m[p-w]&&!seen[p-w]){seen[p-w]=1;st.push(p-w);} if(p<n-w&&!m[p+w]&&!seen[p+w]){seen[p+w]=1;st.push(p+w);} }
+  var o=new Uint8Array(n); for(i=0;i<n;i++) o[i]=(m[i]||!seen[i])?1:0; return o; }
+function isSkin(r,g,b){ var Y=0.299*r+0.587*g+0.114*b, Cr=(r-Y)*0.713+128, Cb=(b-Y)*0.564+128; return Y>50 && Cr>=137 && Cr<=178 && Cb>=78 && Cb<=128 && r>g; }
+function isExcluded(r,g,b){ if(station.skin && isSkin(r,g,b)) return true;
+  for(var i=0;i<station.gloves.length;i++){ var c=station.gloves[i]; if(Math.abs(r-c[0])+Math.abs(g-c[1])+Math.abs(b-c[2])<c[3]) return true; } return false; }
+function borderColor(d,w,h){ var rs=[],gs=[],bs=[]; function add(x,y){ var j=(y*w+x)*4; rs.push(d[j]); gs.push(d[j+1]); bs.push(d[j+2]); }
+  for(var x=0;x<w;x+=3){ add(x,0); add(x,h-1); } for(var y=0;y<h;y+=3){ add(0,y); add(w-1,y); }
+  function med(a){ a.sort(function(p,q){return p-q;}); return a[a.length>>1]; } return [med(rs),med(gs),med(bs)]; }
+function bgAt(i, bc){ var bg=station.bg; return bg ? [bg[i*3],bg[i*3+1],bg[i*3+2]] : bc; }
+/* 바탕 등록: 빈 거치대 여러 장 평균 */
+function setBackground(frames){ var acc=null, w=0,h=0;
+  frames.forEach(function(src){ var f=drawTo(segC,src,SEG_W); w=f.w; h=f.h; if(!acc) acc=new Float32Array(w*h*3); for(var i=0,j=0;i<w*h;i++,j+=4){ acc[i*3]+=f.d[j]; acc[i*3+1]+=f.d[j+1]; acc[i*3+2]+=f.d[j+2]; } });
+  for(var k=0;k<acc.length;k++) acc[k]/=frames.length;
+  // 살짝 흐리게(잡티 감소)
+  var o=new Float32Array(acc.length); for(var c=0;c<3;c++){ var ch=new Float32Array(w*h); for(var i2=0;i2<w*h;i2++) ch[i2]=acc[i2*3+c]; ch=boxBlur(ch,w,h); for(var i3=0;i3<w*h;i3++) o[i3*3+c]=ch[i3]; }
+  station.bg=o; station.bgW=w; station.bgH=h; }
+/* ① 화면에서 제품 찾기 */
+function segment(f){
+  var w=f.w, h=f.h, n=w*h, d=f.d, fg=new Uint8Array(n), ex=new Uint8Array(n), useBg=!noBg&&station.bg&&station.bgW===w&&station.bgH===h, bc=useBg?null:borderColor(d,w,h), T=station.T, bg=station.bg;
+  for(var i=0,j=0;i<n;i++,j+=4){ var r=d[j],g=d[j+1],b=d[j+2], br,bgc,bb;
+    if(useBg){ br=bg[i*3]; bgc=bg[i*3+1]; bb=bg[i*3+2]; } else { br=bc[0]; bgc=bc[1]; bb=bc[2]; }
+    var dist=Math.abs(r-br)+Math.abs(g-bgc)+Math.abs(b-bb); if(dist<=T) continue;
+    var L=r+g+b, LB=br+bgc+bb; // 그림자: 바탕보다 어둡고 색 비율은 비슷하면 제외
+    if(L<LB && L>LB*0.4 && LB>90){ if(Math.abs(r/(L+1)-br/(LB+1))<0.035 && Math.abs(g/(L+1)-bgc/(LB+1))<0.035) continue; }
+    if(isExcluded(r,g,b)){ ex[i]=1; continue; }
+    fg[i]=1; }
+  fg=erode(dilate(fg,w,h,2),w,h,2); fg=dilate(erode(fg,w,h,1),w,h,1);
+  var lab=new Int32Array(n), objs=[], st=[], minA=n*0.006, maxA=n*0.6;
+  for(var s=0;s<n;s++){ if(!fg[s]||lab[s]) continue; var id=objs.length+1, area=0, x0=1e9,y0=1e9,x1=-1,y1=-1, edge=false; st.push(s); lab[s]=id;
+    while(st.length){ var p=st.pop(), px=p%w, py=(p-px)/w; area++; if(px<x0)x0=px; if(px>x1)x1=px; if(py<y0)y0=py; if(py>y1)y1=py; if(px<=1||py<=1||px>=w-2||py>=h-2) edge=true;
+      if(px>0&&fg[p-1]&&!lab[p-1]){lab[p-1]=id;st.push(p-1);} if(px<w-1&&fg[p+1]&&!lab[p+1]){lab[p+1]=id;st.push(p+1);}
+      if(py>0&&fg[p-w]&&!lab[p-w]){lab[p-w]=id;st.push(p-w);} if(py<h-1&&fg[p+w]&&!lab[p+w]){lab[p+w]=id;st.push(p+w);} }
+    objs.push({id:id,x:x0,y:y0,w:x1-x0+1,h:y1-y0+1,area:area,edge:edge}); }
+  var good=objs.filter(function(o){ return o.area>=minA && o.area<=maxA && !o.edge; });
+  return {w:w,h:h,lab:lab,ex:ex,objs:good,all:objs,useBg:useBg,bc:bc}; }
+/* ② 제품 잘라내기 (정밀 실루엣 포함) */
+function extract(hi, sg, o){
+  var k=hi.w/sg.w, mx=o.w*0.12+2, my=o.h*0.12+2;
+  var X0=Math.max(0,Math.floor((o.x-mx)*k)), Y0=Math.max(0,Math.floor((o.y-my)*k)), X1=Math.min(hi.w,Math.ceil((o.x+o.w+mx)*k)), Y1=Math.min(hi.h,Math.ceil((o.y+o.h+my)*k));
+  var bw=X1-X0, bh=Y1-Y0, s=CAN/Math.max(bw,bh), cw=Math.max(16,Math.round(bw*s)), ch=Math.max(16,Math.round(bh*s));
+  var c=makeCanvas(cw,ch), x=ctx2(c); x.imageSmoothingQuality="high"; x.drawImage(hi.canvas,X0,Y0,bw,bh,0,0,cw,ch);
+  var d=x.getImageData(0,0,cw,ch).data, n=cw*ch, coarse=new Uint8Array(n), exm=new Uint8Array(n), mask=new Uint8Array(n);
+  for(var yy=0;yy<ch;yy++) for(var xx=0;xx<cw;xx++){ var sx=Math.min(sg.w-1,((X0+(xx+0.5)/s)/k)|0), sy=Math.min(sg.h-1,((Y0+(yy+0.5)/s)/k)|0), si=sy*sg.w+sx, i=yy*cw+xx;
+    if(sg.lab[si]===o.id) coarse[i]=1; if(sg.ex[si]) exm[i]=1;
+    var j=i*4, bcol=sg.useBg?bgAt(si):sg.bc, dist=Math.abs(d[j]-bcol[0])+Math.abs(d[j+1]-bcol[1])+Math.abs(d[j+2]-bcol[2]);
+    mask[i]=(dist>station.T && !isExcluded(d[j],d[j+1],d[j+2]))?1:0; }
+  var near=dilate(coarse,cw,ch,Math.ceil(s*k*1.5)+1);
+  for(var q=0;q<n;q++) mask[q]=mask[q]&&near[q]?1:0;
+  mask=erode(dilate(mask,cw,ch,1),cw,ch,1);
+  mask=fillHoles(mask,cw,ch);
+  return {canvas:c, d:d, w:cw, h:ch, mask:mask, ex:dilate(exm,cw,ch,4), X0:X0, Y0:Y0, s:s, k:k}; }
+/* 특징 계산 (기준·검사 공통) */
+function prep(o){
+  var w=o.w,h=o.h,n=w*h; o.gray=boxBlur(gray(o.d,n),w,h); o.grad=gradMag(o.gray,w,h); o.G4=down(o.grad,w,h,4);
+  var a=0; for(var i=0;i<n;i++) a+=o.mask[i]; o.area=a; o.aspect=w/h;
+  o.mEro=erode(o.mask,w,h,2); o.mDil=dilate(o.mask,w,h,2);
+  // 정렬용 점: 실루엣 주변(안쪽+경계)
+  var md=dilate(o.mask,w,h,3), pts=[], p4=[], m4w=o.G4.w, m4h=o.G4.h;
+  var EX=o.ex||new Uint8Array(n);
+  for(var y=2;y<h-2;y+=4) for(var x=2+(y&4?2:0);x<w-2;x+=4) if(md[y*w+x] && !EX[y*w+x]) pts.push(x,y);
+  for(var y4=0;y4<m4h;y4+=1) for(var x4=0;x4<m4w;x4+=1){ var mx=Math.min(w-1,x4*4+2), my=Math.min(h-1,y4*4+2); if(md[my*w+mx] && !EX[my*w+mx] && ((x4+y4)&1)===0) p4.push(x4,y4); }
+  o.pts=pts; o.p4=p4;
+  // 손·장갑 영역(정렬 때 검사품 쪽에서 건너뜀): 원본 크기와 1/4 크기
+  var e4=new Uint8Array(m4w*m4h), anyEx=false; for(var y5=0;y5<h;y5++) for(var x5=0;x5<w;x5++){ if(EX[y5*w+x5]){ anyEx=true; var X4=Math.min(m4w-1,x5>>2), Y4=Math.min(m4h-1,y5>>2); e4[Y4*m4w+X4]=1; } }
+  o.E1=anyEx?EX:null; o.E4=anyEx?e4:null;
+  // 비교용 요약(16×16 밝기 + 실루엣)
+  var D=new Float32Array(512), sum=0,sum2=0,cnt=0, gs=[];
+  for(var by=0;by<16;by++) for(var bx=0;bx<16;bx++){ var x0=(bx*w/16)|0, x1=((bx+1)*w/16)|0, y0=(by*h/16)|0, y1=((by+1)*h/16)|0, sv=0, mv=0, c=0;
+    for(var yy=y0;yy<Math.max(y1,y0+1);yy++) for(var xx=x0;xx<Math.max(x1,x0+1);xx++){ var ii=yy*w+xx; sv+=o.gray[ii]*o.mask[ii]; mv+=o.mask[ii]; c++; }
+    var gv=mv?sv/mv:0; gs.push([gv,mv/c]); if(mv){ sum+=gv; sum2+=gv*gv; cnt++; } }
+  var mean=cnt?sum/cnt:0, sd=cnt?Math.sqrt(Math.max(1,sum2/cnt-mean*mean)):1;
+  for(var z=0;z<256;z++){ D[z]=gs[z][1]>0.3?(gs[z][0]-mean)/sd:0; D[256+z]=gs[z][1]*2; }
+  o.desc=D;
+  // 세밀 요약(32×32) — 비슷한 각도의 기준 장면을 더 정확히 고르는 데 씀
+  var F=new Float32Array(2048), fs=0, fs2=0, fc=0;
+  for(var fy=0;fy<32;fy++) for(var fx=0;fx<32;fx++){ var a0=(fx*w/32)|0, a1=Math.max(a0+1,((fx+1)*w/32)|0), b0=(fy*h/32)|0, b1=Math.max(b0+1,((fy+1)*h/32)|0), sv2=0, mv2=0, c2=0;
+    for(var y2=b0;y2<b1;y2++) for(var x2=a0;x2<a1;x2++){ var i2=y2*w+x2; sv2+=o.gray[i2]*o.mask[i2]; mv2+=o.mask[i2]; c2++; }
+    var k2=fy*32+fx; F[k2]=mv2?sv2/mv2:0; F[1024+k2]=mv2/c2; if(mv2){ fs+=F[k2]; fs2+=F[k2]*F[k2]; fc++; } }
+  var fm=fc?fs/fc:0, fsd=fc?Math.sqrt(Math.max(1,fs2/fc-fm*fm)):1; for(var z2=0;z2<1024;z2++) F[z2]=F[1024+z2]>0.3?(F[z2]-fm)/fsd:0;
+  o.fine=F; return o; }
+function fineDist(a,b){ if(!a.fine||!b.fine) return 0; var s=0, n=0, sm=0; for(var i=0;i<1024;i++){ var ma=a.fine[1024+i], mb=b.fine[1024+i]; sm+=Math.abs(ma-mb); if(ma>0.3&&mb>0.3){ var t=a.fine[i]-b.fine[i]; s+=t*t; n++; } } return (n?s/n:9)+sm/1024*2; }
+function descDist(a,b){ var s=0; for(var i=0;i<512;i++){ var t=a.desc[i]-b.desc[i]; s+=t*t; } return s/512 + 1.5*Math.abs(Math.log(a.aspect/b.aspect)); }
+/* ③ 정렬: 기준 좌표 p → 검사 좌표 q = ct + sR(p-cr) + d */
+/* 변환 행렬: 회전 θ, 크기 s, 세로 비율 (1+a) — 원근 때문에 가로세로 비율이 살짝 달라지는 것까지 맞춤 */
+function mat(P){ var ca=Math.cos(P.th)*P.s, sa=Math.sin(P.th)*P.s, k=1+(P.a||0); return [ca,-sa*k,sa,ca*k]; }
+function cost(R,Rw,T,Tw,Th,pts,crx,cry,ctx,cty,P,E){ var m=mat(P), m0=m[0],m1=m[1],m2=m[2],m3=m[3], sum=0, n=0;
+  for(var k=0;k<pts.length;k+=2){ var x=pts[k]-crx, y=pts[k+1]-cry, qx=(ctx+m0*x+m1*y+P.dx+0.5)|0, qy=(cty+m2*x+m3*y+P.dy+0.5)|0;
+    if(qx<0||qy<0||qx>=Tw||qy>=Th){ sum+=40; n++; continue; } if(E && E[qy*Tw+qx]) continue; sum+=Math.abs(R[pts[k+1]*Rw+pts[k]]-T[qy*Tw+qx]); n++; }
+  return n?sum/n:Infinity; }
+function lvl(P,k,a){ var m=mat(P), ex=k*a[0]-a[4], ey=k*a[1]-a[5];
+  return {s:P.s, th:P.th, a:P.a||0, dx:k*P.dx+(k*a[2]-a[6])-(m[0]*ex+m[1]*ey), dy:k*P.dy+(k*a[3]-a[7])-(m[2]*ex+m[3]*ey)}; }
+function align(R, T){
+  var R4=R.G4, T4=T.G4, cr4x=R4.w/2, cr4y=R4.h/2, ct4x=T4.w/2, ct4y=T4.h/2, best={c:Infinity}, P, c, rng=Math.max(2,Math.round(Math.max(T4.w,T4.h)*0.07));
+  var s0=Math.sqrt(T.area/Math.max(1,R.area)); if(!(s0>0.6&&s0<1.6)) s0=1;
+  var scR=T.E1?0.1:0.02, scS=T.E1?0.033:0.02; // 손이 가장자리를 가리면 잘라낸 크기가 달라지므로 크기 탐색을 넓힘
+  for(var th=-12;th<=12;th+=4) for(var sc=-scR;sc<=scR+0.001;sc+=scS) for(var dy=-rng;dy<=rng;dy++) for(var dx=-rng;dx<=rng;dx++){
+    P={s:s0+sc,th:th*Math.PI/180,dx:dx,dy:dy}; c=cost(R4.d,R4.w,T4.d,T4.w,T4.h,R.p4,cr4x,cr4y,ct4x,ct4y,P,T.E4);
+    c+=0.03*Math.abs(sc)/0.02+0.01*Math.abs(th)/4+0.004*(Math.abs(dx)+Math.abs(dy)); /* 저해상도에선 차이가 안 보이는 후보끼리 비기면 '변화 없음'에 가까운 쪽을 고름 */ if(c<best.c) best={c:c,P:P}; }
+  var b=best.P, crx=R.w/2, cry=R.h/2, ctx=T.w/2, cty=T.h/2;
+  b=lvl(b,4,[cr4x,cr4y,ct4x,ct4y,crx,cry,ctx,cty]);
+  var B={c:cost(R.grad,R.w,T.grad,T.w,T.h,R.pts,crx,cry,ctx,cty,b,T.E1),P:b};
+  // 정밀 맞춤 1: 위치는 크게(±3) 
+  for(var y2=-3;y2<=3;y2++) for(var x2=-3;x2<=3;x2++){ P={s:b.s,th:b.th,a:0,dx:b.dx+x2,dy:b.dy+y2}; c=cost(R.grad,R.w,T.grad,T.w,T.h,R.pts,crx,cry,ctx,cty,P,T.E1); if(c<B.c) B={c:c,P:P}; }
+  // 정밀 맞춤 2: 회전·크기·세로 비율 + 위치 ±1
+  var b2=B.P;
+  for(var t=-2;t<=2.01;t+=2) for(var s2=-0.01;s2<=0.011;s2+=0.01) for(var a2=-0.02;a2<=0.021;a2+=0.02) for(var y3=-1;y3<=1;y3++) for(var x3=-1;x3<=1;x3++){
+    P={s:b2.s+s2,th:b2.th+t*Math.PI/180,a:a2,dx:b2.dx+x3,dy:b2.dy+y3}; c=cost(R.grad,R.w,T.grad,T.w,T.h,R.pts,crx,cry,ctx,cty,P,T.E1); if(c<B.c) B={c:c,P:P}; }
+  var b3=B.P;
+  for(var s4=-0.005;s4<=0.0051;s4+=0.005) for(var a4=-0.01;a4<=0.011;a4+=0.01) for(var y4=-1;y4<=1;y4++) for(var x4=-1;x4<=1;x4++){
+    P={s:b3.s+s4,th:b3.th,a:b3.a+a4,dx:b3.dx+x4*0.5,dy:b3.dy+y4*0.5}; c=cost(R.grad,R.w,T.grad,T.w,T.h,R.pts,crx,cry,ctx,cty,P,T.E1); if(c<B.c) B={c:c,P:P}; }
+  var Pf=B.P, mf=mat(Pf), sa=0,sb=0,saa=0,sbb=0,sab=0,n=0;
+  for(var k=0;k<R.pts.length;k+=2){ var x=R.pts[k]-crx, y=R.pts[k+1]-cry, qx=(ctx+mf[0]*x+mf[1]*y+Pf.dx+0.5)|0, qy=(cty+mf[2]*x+mf[3]*y+Pf.dy+0.5)|0; if(qx<0||qy<0||qx>=T.w||qy>=T.h) continue; if(T.E1 && T.E1[qy*T.w+qx]) continue;
+    var A=R.grad[R.pts[k+1]*R.w+R.pts[k]], Bv=T.grad[qy*T.w+qx]; sa+=A; sb+=Bv; saa+=A*A; sbb+=Bv*Bv; sab+=A*Bv; n++; }
+  var cov=n?sab/n-(sa/n)*(sb/n):0, va=n?saa/n-(sa/n)*(sa/n):0, vb=n?sbb/n-(sb/n)*(sb/n):0;
+  return {P:Pf, crx:crx, cry:cry, ctx:ctx, cty:cty, ncc:(va>0&&vb>0)?cov/Math.sqrt(va*vb):0}; }
+function sens2th(s){ return 64-(s-1)*5; }
+/* ④ 차이 찾기 (기준 좌표계에서) */
+function compare(R, T, al, opt){
+  var w=R.w, h=R.h, n=w*h, P=al.P, mm=mat(P), Td=T.d, Tw=T.w, Th=T.h;
+  var tw=[new Float32Array(n),new Float32Array(n),new Float32Array(n)], rr=[new Float32Array(n),new Float32Array(n),new Float32Array(n)], valid=new Uint8Array(n), shape=new Uint8Array(n);
+  var tMEro=T.mEro, tMDil=T.mDil, tEx=T.ex;
+  for(var y=0;y<h;y++) for(var x=0;x<w;x++){ var i=y*w+x, ix=x-al.crx, iy=y-al.cry, qx=al.ctx+mm[0]*ix+mm[1]*iy+P.dx, qy=al.cty+mm[2]*ix+mm[3]*iy+P.dy, j=i*4;
+    rr[0][i]=R.d[j]; rr[1][i]=R.d[j+1]; rr[2][i]=R.d[j+2];
+    if(qx<0||qy<0||qx>Tw-1.001||qy>Th-1.001){ tw[0][i]=rr[0][i]; tw[1][i]=rr[1][i]; tw[2][i]=rr[2][i]; continue; }
+    var x0=qx|0, y0=qy|0, fx=qx-x0, fy=qy-y0, i00=(y0*Tw+x0)*4, i10=i00+4, i01=i00+Tw*4, i11=i01+4, qi=((qy+0.5)|0)*Tw+((qx+0.5)|0);
+    for(var k=0;k<3;k++) tw[k][i]=(Td[i00+k]*(1-fx)+Td[i10+k]*fx)*(1-fy)+(Td[i01+k]*(1-fx)+Td[i11+k]*fx)*fy;
+    if(tEx[qi] || R.ex[i]) continue; // 손·장갑이 가린 곳(검사품·기준 모두)은 판단하지 않음
+    if(R.mEro[i] && tMEro[qi]) valid[i]=1;
+    if(R.mEro[i] && !tMDil[qi]) shape[i]=1;        // 기준엔 있는데 검사품엔 없음 (미성형·깨짐)
+    if(!R.mDil[i] && tMEro[qi]) shape[i]=1; }      // 기준엔 없는데 튀어나옴 (버·변형)
+  var cnt=0, sr=[0,0,0], st=[0,0,0], sr2=[0,0,0], st2=[0,0,0];
+  for(var q=0;q<n;q++) if(valid[q]){ cnt++; for(var k2=0;k2<3;k2++){ sr[k2]+=rr[k2][q]; st[k2]+=tw[k2][q]; sr2[k2]+=rr[k2][q]*rr[k2][q]; st2[k2]+=tw[k2][q]*tw[k2][q]; } }
+  if(cnt<50) return null;
+  for(var k3=0;k3<3;k3++){ var mr=sr[k3]/cnt, mt=st[k3]/cnt, dr=Math.sqrt(Math.max(1,sr2[k3]/cnt-mr*mr)), dt=Math.sqrt(Math.max(1,st2[k3]/cnt-mt*mt)), g=Math.min(1.6,Math.max(0.6,dr/dt));
+    for(var q2=0;q2<n;q2++) tw[k3][q2]=(tw[k3][q2]-mt)*g+mr; rr[k3]=boxBlur(rr[k3],w,h); tw[k3]=boxBlur(tw[k3],w,h); }
+  function cd(A,i,B,j){ var a=Math.abs(A[0][i]-B[0][j]), b=Math.abs(A[1][i]-B[1][j]), cc=Math.abs(A[2][i]-B[2][j]); return (a+b+cc)/6+Math.max(a,b,cc)/2; }
+  var th=sens2th(opt.sens||5), th0=th*0.9, M=new Uint8Array(n), RX=opt.radX||4, RY=opt.radY||2; /* 옆으로(회전 방향) 더 넓게 허용: 기준 각도 사이에서 무늬가 몇 픽셀 밀리는 것 흡수 */
+  for(var y4=2;y4<h-2;y4++) for(var x4=2;x4<w-2;x4++){ var i4=y4*w+x4; if(shape[i4]){ M[i4]=1; continue; } if(!valid[i4]) continue;
+    var d0=cd(tw,i4,rr,i4); if(d0<=th0) continue; var m1=1e9,m2=1e9;
+    for(var dy=-RY;dy<=RY;dy++){ var yy=Math.min(h-1,Math.max(0,y4+dy)); for(var dx=-RX;dx<=RX;dx++){ var jj=yy*w+Math.min(w-1,Math.max(0,x4+dx)); var a1=cd(tw,i4,rr,jj); if(a1<m1)m1=a1; var a2=cd(rr,i4,tw,jj); if(a2<m2)m2=a2; } }
+    if(Math.max(m1,m2)>th) M[i4]=1; }
+  // 외톨이 점 제거(가는 스크래치는 살림)
+  for(var pass=0;pass<2;pass++){ var O=new Uint8Array(n); for(var y5=1;y5<h-1;y5++) for(var x5=1;x5<w-1;x5++){ var i5=y5*w+x5; if(!M[i5]) continue;
+    var nb=M[i5-w-1]+M[i5-w]+M[i5-w+1]+M[i5-1]+M[i5+1]+M[i5+w-1]+M[i5+w]+M[i5+w+1]; O[i5]=nb>=2?1:0; } M=O; }
+  // 검사품 좌표로 옮긴 결함 지도 (여러 기준 장면 결과를 겹쳐보기 위함)
+  var TM=new Uint8Array(Tw*Th), TS=new Uint8Array(Tw*Th);
+  for(var y6=0;y6<h;y6++) for(var x6=0;x6<w;x6++){ var i6=y6*w+x6; if(!M[i6]) continue; var ix6=x6-al.crx, iy6=y6-al.cry, qx6=Math.round(al.ctx+mm[0]*ix6+mm[1]*iy6+P.dx), qy6=Math.round(al.cty+mm[2]*ix6+mm[3]*iy6+P.dy);
+    for(var oy=0;oy<=1;oy++) for(var ox=0;ox<=1;ox++){ var tx=qx6+ox, ty=qy6+oy; if(tx>=0&&ty>=0&&tx<Tw&&ty<Th){ TM[ty*Tw+tx]=1; if(shape[i6]) TS[ty*Tw+tx]=1; } } }
+  return {TM:TM, TS:TS, any:TM.some(function(v){return v===1;})};
+}
+/* 기준 장면 하나를 검사품 좌표로 옮기는 함수 (표시용) */
+function refToTest(al, x, y){ var P=al.P, m=mat(P), ix=x-al.crx, iy=y-al.cry; return [al.ctx+m[0]*ix+m[1]*iy+P.dx, al.cty+m[2]*ix+m[3]*iy+P.dy]; }
+/* ⑤ 한 제품 판정: 가장 비슷한 기준 장면부터 차례로 비교.
+   첫 장면에서 차이가 없으면 바로 양품. 차이가 있으면 다음 장면과도 비교해 '모든 장면과 다른 부분'만 결함으로 남김
+   (기준 각도 사이에서 생기는 가짜 차이를 지움 — 진짜 흑점·스크래치는 어느 장면과도 다르므로 남음) */
+function blobsFrom(M, S, w, h, minA){
+  var n=w*h, lab=new Int32Array(n), blobs=[], stk=[];
+  for(var s=0;s<n;s++){ if(!M[s]||lab[s]) continue; var id=blobs.length+1, area=0, sh=0, bx0=1e9,by0=1e9,bx1=-1,by1=-1; stk.push(s); lab[s]=id;
+    while(stk.length){ var p=stk.pop(), px=p%w, py=(p-px)/w; area++; if(S[p]) sh++; if(px<bx0)bx0=px; if(px>bx1)bx1=px; if(py<by0)by0=py; if(py>by1)by1=py;
+      for(var ny=-1;ny<=1;ny++) for(var nx=-1;nx<=1;nx++){ var ax=px+nx, ay=py+ny; if(ax<0||ay<0||ax>=w||ay>=h) continue; var q=ay*w+ax; if(M[q]&&!lab[q]){ lab[q]=id; stk.push(q);} } }
+    if(area>=minA) blobs.push({x:bx0,y:by0,w:bx1-bx0+1,h:by1-by0+1,area:area,shape:sh>area*0.5}); }
+  var merged=true; while(merged){ merged=false; for(var a=0;a<blobs.length&&!merged;a++) for(var b=a+1;b<blobs.length;b++){ var E=blobs[a], F=blobs[b], gap=10;
+    if(E.x-gap<F.x+F.w&&F.x-gap<E.x+E.w&&E.y-gap<F.y+F.h&&F.y-gap<E.y+E.h){ var nx0=Math.min(E.x,F.x), ny0=Math.min(E.y,F.y);
+      blobs[a]={x:nx0,y:ny0,w:Math.max(E.x+E.w,F.x+F.w)-nx0,h:Math.max(E.y+E.h,F.y+F.h)-ny0,area:E.area+F.area,shape:E.shape||F.shape}; blobs.splice(b,1); merged=true; break; } } }
+  return blobs; }
+function judge(T, refs, opt){
+  if(!refs.length) return {status:"noref"};
+  var ranked=refs.map(function(r,i){ return {i:i, d:descDist(T,r)}; }).sort(function(a,b){ return a.d-b.d; }).slice(0, 10);
+  ranked.forEach(function(r){ r.f=fineDist(T,refs[r.i]); }); ranked.sort(function(a,b){ return a.f-b.f; }); ranked=ranked.slice(0, opt.maxK||5);
+  var acc=null, accS=null, used=[], bestNcc=0, bestRef=-1, n=T.w*T.h;
+  for(var k=0;k<ranked.length;k++){
+    // 기본은 비슷한 장면 3개까지. 그래도 차이가 남으면(불량 의심) 최대 6개까지 더 비교해 확실히 함
+    if(k>=(opt.topK||3) && !acc) break;
+    var R=refs[ranked[k].i], al=align(R,T); if(al.ncc<0.4) continue;
+    var cmp=compare(R,T,al,opt); if(!cmp) continue;
+    used.push(ranked[k].i); if(al.ncc>bestNcc){ bestNcc=al.ncc; bestRef=ranked[k].i; }
+    if(!acc){ acc=cmp.TM; accS=cmp.TS; }
+    else { var dm=dilate(cmp.TM,T.w,T.h,3); for(var q=0;q<n;q++){ if(acc[q]&&!dm[q]){ acc[q]=0; accS[q]=0; } } }
+    var left=0; for(var q2=0;q2<n;q2++) left+=acc[q2];
+    if(left<(opt.minSize||8)) { acc=new Uint8Array(n); break; }
+  }
+  if(!acc) return {status:"unknown", dd:ranked[0].d};
+  var blobs=blobsFrom(acc, accS, T.w, T.h, opt.minSize||8), tot=0; blobs.forEach(function(b){ tot+=b.area; });
+  // 실루엣 가장자리 띠(크기의 6%)에만 있는 색 차이는 '가장자리'로 표시 — 원통 옆면 가장자리는 눌려 보여 오차가 큼(화면에서 더 오래 확인)
+  if(blobs.length){ var rE=Math.max(3,Math.round(Math.max(T.w,T.h)*0.06)), inner=erode(T.mask,T.w,T.h,rE);
+    blobs.forEach(function(b){ if(b.shape){ b.edge=false; return; } var e=0, a=0; for(var y=b.y;y<b.y+b.h;y++) for(var x=b.x;x<b.x+b.w;x++){ var i=y*T.w+x; if(acc[i]){ a++; if(!inner[i]) e++; } } b.edge = a>0 && e>=a*0.7; }); }
+  return {status: blobs.length?"ng":"ok", ref:bestRef, refsUsed:used, blobs:blobs, areaPct:tot/Math.max(1,T.area)*100, ncc:bestNcc}; }
+/* 한 프레임 전체 처리 */
+function frame(src, refs, opt){
+  noBg=!!opt.noBg; try{ return frame1(src, refs, opt); } finally { noBg=false; } }
+function frame1(src, refs, opt){
+  var T0=performance.now(), sgf=drawTo(segC,src,SEG_W), sg=segment(sgf), hif=drawTo(hiC,src,HI_W); hif.canvas=hiC;
+  // 이미 결과가 정해진 제품(opt.skip이 true)은 다시 계산하지 않고 위치만 돌려줌 → 여러 개일 때 빨라짐
+  var out=sg.objs.slice(0,opt.maxObjs||6).map(function(o){ if(opt.skip && opt.skip(o, sgf.w)) return {status:"skip", seg:o, blobs:[]};
+    // 기준보다 훨씬 크면 제품 두 개 이상이 붙어 하나로 보이는 것 → 판정하지 않고 알림
+    if(opt.refArea && !noBg){ var asp=(o.w*1.24+4)/(o.h*1.24+4), rA=opt.refAspect||[0,99];
+      if((o.area>opt.refArea*1.4 && (asp>rA[1]*1.35 || asp<rA[0]/1.35)) || o.area>(opt.refAreaMax||opt.refArea)*2.2) return {status:"merged", seg:o, blobs:[]}; }
+    var T=prep(extract(hif,sg,o)); T.segArea=o.area; var r=judge(T,refs,opt); r.T=T; r.seg=o; r.k=hif.w/sgf.w; return r; });
+  // 아무것도 없는 빈 화면이면 바탕을 조금씩 따라감(조명이 서서히 바뀌어도 바탕이 맞도록)
+  if(opt.adaptBg && !noBg && !sg.all.some(function(q){ return q.area>sgf.w*sgf.h*0.002; }) && station.bg && station.bgW===sgf.w && station.bgH===sgf.h){ var bg=station.bg, d=sgf.d, a=0.05, lim=station.T*0.8;
+    for(var i=0,j=0;i<sgf.w*sgf.h;i++,j+=4){ var k3=i*3; if(Math.abs(d[j]-bg[k3])+Math.abs(d[j+1]-bg[k3+1])+Math.abs(d[j+2]-bg[k3+2])<lim){ bg[k3]+=(d[j]-bg[k3])*a; bg[k3+1]+=(d[j+1]-bg[k3+1])*a; bg[k3+2]+=(d[j+2]-bg[k3+2])*a; } } station.bgAdapted=(station.bgAdapted||0)+1; }
+  return {objs:out, w:sgf.w, h:sgf.h, hiW:hif.w, hiH:hif.h, ms:performance.now()-T0, seg:sg}; }
+/* 기준 만들기용: 화면에서 가장 큰 제품 하나를 잘라 특징 계산 */
+function largestObject(src, nb){ noBg=!!nb; try{ return largest1(src); } finally { noBg=false; } }
+function largest1(src){ var sgf=drawTo(segC,src,SEG_W), sg=segment(sgf); if(!sg.objs.length) return null;
+  var o=sg.objs.slice().sort(function(a,b){ return b.area-a.area; })[0], hif=drawTo(hiC,src,HI_W); hif.canvas=hiC; var T=prep(extract(hif,sg,o)); T.segArea=o.area; return T; }
+/* 저장용: 기준 장면 → {w,h,img(JPEG dataless 처리는 호출측), mask 비트} */
+function packMask(m){ var b=new Uint8Array(Math.ceil(m.length/8)); for(var i=0;i<m.length;i++) if(m[i]) b[i>>3]|=1<<(i&7); return b; }
+function unpackMask(b,n){ var m=new Uint8Array(n); for(var i=0;i<n;i++) m[i]=(b[i>>3]>>(i&7))&1; return m; }
+function refFromStored(img, w, h, maskBits, exBits){ var c=makeCanvas(w,h), x=ctx2(c); x.drawImage(img,0,0,w,h); var d=x.getImageData(0,0,w,h).data, n=w*h;
+  return prep({canvas:c, d:d, w:w, h:h, mask:unpackMask(maskBits,n), ex:exBits?unpackMask(exBits,n):new Uint8Array(n)}); }
+/* 기준 장면 품질: 손이 제품을 많이 가렸는지(가린 비율) */
+function handCover(T){ var a=0, b=0; for(var i=0;i<T.mask.length;i++){ if(T.mDil[i]){ b++; if(T.ex[i]) a++; } } return b?a/b:0; }
+return {station:station, setBackground:setBackground, frame:frame, largestObject:largestObject, prep:prep, descDist:descDist, fineDist:fineDist, judge:judge, _align:align, refToTest:refToTest,
+  packMask:packMask, unpackMask:unpackMask, refFromStored:refFromStored, slim:function(T){ delete T.gray; delete T.canvas; delete T.mask; return T; }, handCover:handCover, setNoBg:function(v){ noBg=!!v; }, isExcluded:isExcluded, segmentOnly:function(src,nb){ noBg=!!nb; try{ return segment(drawTo(segC,src,SEG_W)); } finally { noBg=false; } }, CAN:CAN, SEG_W:SEG_W};
+})();
+
+</script>
 <script>
 (function(){
 "use strict";
@@ -347,112 +659,14 @@ function dbPut(name, obj){ return req2p(store(name,"readwrite").put(obj)); }
 function dbDel(name, id){ return req2p(store(name,"readwrite").delete(id)); }
 function recordsBetween(d0, d1){ return req2p(store("records").index("day").getAll(IDBKeyRange.bound(d0,d1))); }
 
-/* ========== 영상 처리 ==========
-   ① 양품 기준은 미리 한 번만 계산해 둠(흑백·경계선 지도·축소본) → 매 프레임은 검사 영상만 계산
-   ② 1/8 → 1/4 → 원본 순서로 이동·확대·회전을 찾아 기준 위치에 맞춤 (거치대 고정이면 탐색 범위를 좁혀 더 빠르게)
-   ③ 검사 영역 안 밝기·색을 기준에 맞춘 뒤, 픽셀마다 주변 2픽셀 안의 기준값과 비교해 진짜 차이만 남김
-   ④ 감도 기준을 넘는 점을 덩어리로 묶고, 최소 크기보다 작은 것은 먼지로 버림 */
-var WORK_W=560;
-function toCanvas(src, w, h){ var c=document.createElement("canvas"); c.width=w; c.height=h; var x=c.getContext("2d",{willReadFrequently:true}); x.drawImage(src,0,0,w,h); return c; }
-function srcSize(s){ return {w:s.videoWidth||s.naturalWidth||s.width, h:s.videoHeight||s.naturalHeight||s.height}; }
-function gray(d,n){ var g=new Float32Array(n); for(var i=0,j=0;i<n;i++,j+=4) g[i]=0.299*d[j]+0.587*d[j+1]+0.114*d[j+2]; return g; }
-function boxBlur(src,w,h){ var t=new Float32Array(w*h), o=new Float32Array(w*h), x,y,i;
-  for(y=0;y<h;y++) for(x=0;x<w;x++){ i=y*w+x; var a=src[i]; t[i]=((x>0?src[i-1]:a)+a+(x<w-1?src[i+1]:a))/3; }
-  for(y=0;y<h;y++) for(x=0;x<w;x++){ i=y*w+x; var b=t[i]; o[i]=((y>0?t[i-w]:b)+b+(y<h-1?t[i+w]:b))/3; } return o; }
-function gradMag(g,w,h){ var o=new Float32Array(w*h); for(var y=1;y<h-1;y++) for(var x=1;x<w-1;x++){ var i=y*w+x;
-  var gx=(g[i-w+1]+2*g[i+1]+g[i+w+1])-(g[i-w-1]+2*g[i-1]+g[i+w-1]), gy=(g[i+w-1]+2*g[i+w]+g[i+w+1])-(g[i-w-1]+2*g[i-w]+g[i-w+1]); o[i]=Math.sqrt(gx*gx+gy*gy)/4; } return o; }
-function down(src,w,h,f){ var nw=Math.floor(w/f), nh=Math.floor(h/f), o=new Float32Array(nw*nh);
-  for(var y=0;y<nh;y++) for(var x=0;x<nw;x++){ var s=0; for(var yy=0;yy<f;yy++) for(var xx=0;xx<f;xx++) s+=src[(y*f+yy)*w+x*f+xx]; o[y*nw+x]=s/(f*f); } return {d:o,w:nw,h:nh}; }
-function roiPts(roi,w,h,step){ var x0=Math.max(1,Math.round(roi.x*w)), y0=Math.max(1,Math.round(roi.y*h)), x1=Math.min(w-2,Math.round((roi.x+roi.w)*w)), y1=Math.min(h-2,Math.round((roi.y+roi.h)*h)), a=[];
-  for(var y=y0;y<y1;y+=step) for(var x=x0;x<x1;x+=step) a.push(x,y); return {pts:a, cx:(x0+x1)/2, cy:(y0+y1)/2}; }
-function alignCost(R,T,w,h,pts,cx,cy,P){ var c=Math.cos(P.th)*P.s, s=Math.sin(P.th)*P.s, sum=0, n=0;
-  for(var k=0;k<pts.length;k+=2){ var x=pts[k]-cx, y=pts[k+1]-cy, qx=(cx+c*x-s*y+P.dx+0.5)|0, qy=(cy+s*x+c*y+P.dy+0.5)|0;
-    if(qx<0||qy<0||qx>=w||qy>=h) continue; sum+=Math.abs(R[pts[k+1]*w+pts[k]]-T[qy*w+qx]); n++; }
-  return n<pts.length/2*0.75 ? Infinity : sum/n; }
-function toLevel(P,F1,c1x,c1y,F2,c2x,c2y){ var k=F1/F2, ex=c1x*k-c2x, ey=c1y*k-c2y, c=Math.cos(P.th)*P.s, s=Math.sin(P.th)*P.s;
-  return {s:P.s, th:P.th, dx:P.dx*k+ex-(c*ex-s*ey), dy:P.dy*k+ey-(s*ex+c*ey)}; }
-function searchAround(R,T,w,h,pts,cx,cy,base,thR,thS,sR,sS,dR,dS){ var best={c:alignCost(R,T,w,h,pts,cx,cy,base),P:base}, P, c;
-  for(var t=-thR;t<=thR+1e-9;t+=thS) for(var sc=-sR;sc<=sR+1e-9;sc+=sS) for(var y=-dR;y<=dR;y+=dS) for(var x=-dR;x<=dR;x+=dS){
-    P={s:base.s+sc, th:base.th+t*Math.PI/180, dx:base.dx+x, dy:base.dy+y}; c=alignCost(R,T,w,h,pts,cx,cy,P); if(c<best.c) best={c:c,P:P}; }
-  return best; }
-function sens2th(s){ return 64-(s-1)*5; }
 
-function prepareRef(src, roi){
-  var z=srcSize(src), w=WORK_W, h=Math.round(z.h*w/z.w), c=toCanvas(src,w,h), rd=c.getContext("2d").getImageData(0,0,w,h).data;
-  var rG=boxBlur(gray(rd,w*h),w,h), rg=gradMag(rG,w,h), R8=down(rg,w,h,8), R4=down(rg,w,h,4);
-  return {w:w,h:h,aspect:z.w/z.h,rd:rd,rg:rg,R8:R8,R4:R4,p8:roiPts(roi,R8.w,R8.h,2),p4:roiPts(roi,R4.w,R4.h,2),fp:roiPts(roi,w,h,4),fp3:roiPts(roi,w,h,3),roi:roi,canvas:c};
-}
-function alignTo(R, tg, fixed){
-  var w=R.w,h=R.h, T8=down(tg,w,h,8), T4=down(tg,w,h,4), best={c:Infinity}, P, c;
-  var rotMax=fixed?3:6, rotStep=fixed?1.5:3, s0=fixed?0.95:0.88, s1=fixed?1.051:1.121, sS=fixed?0.025:0.04, rng=Math.round(R.R8.w*(fixed?0.07:0.12));
-  for(var th=-rotMax;th<=rotMax+1e-9;th+=rotStep) for(var sc=s0;sc<=s1;sc+=sS) for(var dy=-rng;dy<=rng;dy++) for(var dx=-rng;dx<=rng;dx++){
-    P={s:sc,th:th*Math.PI/180,dx:dx,dy:dy}; c=alignCost(R.R8.d,T8.d,R.R8.w,R.R8.h,R.p8.pts,R.p8.cx,R.p8.cy,P); if(c<best.c) best={c:c,P:P}; }
-  if(!isFinite(best.c)) return null;
-  var b4=searchAround(R.R4.d,T4.d,R.R4.w,R.R4.h,R.p4.pts,R.p4.cx,R.p4.cy, toLevel(best.P,8,R.p8.cx,R.p8.cy,4,R.p4.cx,R.p4.cy), 1.5,0.75,0.02,0.01,2,1);
-  var cx=R.fp.cx, cy=R.fp.cy, b1=searchAround(R.rg,tg,w,h,R.fp.pts,cx,cy, toLevel(b4.P,4,R.p4.cx,R.p4.cy,1,cx,cy), 0.5,0.5,0.006,0.006,2,1);
-  var Pf=b1.P, fp=R.fp3, sa=0,sb=0,saa=0,sbb=0,sab=0,n=0, co=Math.cos(Pf.th)*Pf.s, si=Math.sin(Pf.th)*Pf.s;
-  for(var k=0;k<fp.pts.length;k+=2){ var x=fp.pts[k]-cx, y=fp.pts[k+1]-cy, qx=(cx+co*x-si*y+Pf.dx+0.5)|0, qy=(cy+si*x+co*y+Pf.dy+0.5)|0;
-    if(qx<0||qy<0||qx>=w||qy>=h) continue; var A=R.rg[fp.pts[k+1]*w+fp.pts[k]], B=tg[qy*w+qx]; sa+=A; sb+=B; saa+=A*A; sbb+=B*B; sab+=A*B; n++; }
-  if(!n) return null;
-  var cov=sab/n-(sa/n)*(sb/n), va=saa/n-(sa/n)*(sa/n), vb=sbb/n-(sb/n)*(sb/n);
-  return {P:Pf, cx:cx, cy:cy, ncc:(va>0&&vb>0)?cov/Math.sqrt(va*vb):0};
-}
-/* 한 프레임 판정: R=준비된 기준, src=영상·사진, o={sens,minSize,fixed} */
-function analyzeFrame(R, src, o){
-  var T0=performance.now(), z=srcSize(src);
-  if(!z.w||!z.h) return {retake:true, reason:"영상을 읽지 못했습니다"};
-  if(Math.abs(z.w/z.h-R.aspect)/R.aspect>0.08) return {retake:true, reason:"기준과 화면 비율이 다릅니다 (가로·세로 방향 확인)"};
-  var w=R.w, h=R.h, n=w*h, tc=toCanvas(src,w,h), td=tc.getContext("2d").getImageData(0,0,w,h).data;
-  var tG=boxBlur(gray(td,n),w,h), tg=gradMag(tG,w,h), al=alignTo(R,tg,o.fixed);
-  if(!al) return {retake:true, reason:"제품 위치를 찾지 못했습니다", ncc:0};
-  var roi=R.roi, mx=roi.w*0.06, my=roi.h*0.06;
-  var X0=Math.max(0,Math.floor((roi.x-mx)*w)), Y0=Math.max(0,Math.floor((roi.y-my)*h)), X1=Math.min(w,Math.ceil((roi.x+roi.w+mx)*w)), Y1=Math.min(h,Math.ceil((roi.y+roi.h+my)*h));
-  var cw=X1-X0, ch=Y1-Y0, cn=cw*ch, rd=R.rd;
-  var tw=new Uint8ClampedArray(cn*4), rr=new Uint8ClampedArray(cn*4), valid=new Uint8Array(cn);
-  var P=al.P, cs=Math.cos(P.th)*P.s, sn=Math.sin(P.th)*P.s;
-  for(var y=0;y<ch;y++) for(var x=0;x<cw;x++){
-    var px=X0+x, py=Y0+y, ix=px-al.cx, iy=py-al.cy, qx=al.cx+cs*ix-sn*iy+P.dx, qy=al.cy+sn*ix+cs*iy+P.dy, oo=(y*cw+x)*4, ro=(py*w+px)*4;
-    rr[oo]=rd[ro]; rr[oo+1]=rd[ro+1]; rr[oo+2]=rd[ro+2]; rr[oo+3]=255;
-    if(qx<0||qy<0||qx>w-1.001||qy>h-1.001){ tw[oo]=rr[oo]; tw[oo+1]=rr[oo+1]; tw[oo+2]=rr[oo+2]; tw[oo+3]=255; continue; }
-    var x0=qx|0, y0=qy|0, fx=qx-x0, fy=qy-y0, i00=(y0*w+x0)*4, i10=i00+4, i01=i00+w*4, i11=i01+4;
-    for(var k=0;k<3;k++) tw[oo+k]=(td[i00+k]*(1-fx)+td[i10+k]*fx)*(1-fy)+(td[i01+k]*(1-fx)+td[i11+k]*fx)*fy;
-    tw[oo+3]=255; valid[y*cw+x]=1;
-  }
-  var rx0=Math.round(roi.x*w)-X0, ry0=Math.round(roi.y*h)-Y0, rx1=Math.round((roi.x+roi.w)*w)-X0, ry1=Math.round((roi.y+roi.h)*h)-Y0;
-  function inRoi(x,y,m){ return x>=rx0+m && x<rx1-m && y>=ry0+m && y<ry1-m; }
-  var Tc=[], Rc=[];
-  for(var c=0;c<3;c++){ var A=new Float32Array(cn), B=new Float32Array(cn), sr=0,st=0,sr2=0,st2=0,cnt=0;
-    for(var q=0;q<cn;q++){ var v1=rr[q*4+c], v2=tw[q*4+c]; A[q]=v1; B[q]=v2; var yy=(q/cw)|0, xx=q-yy*cw; if(valid[q]&&inRoi(xx,yy,0)){ sr+=v1; st+=v2; sr2+=v1*v1; st2+=v2*v2; cnt++; } }
-    var mr=sr/cnt, mt=st/cnt, dr=Math.sqrt(Math.max(1,sr2/cnt-mr*mr)), dt=Math.sqrt(Math.max(1,st2/cnt-mt*mt)), g=Math.min(1.6,Math.max(0.6,dr/dt));
-    for(var q2=0;q2<cn;q2++) B[q2]=(B[q2]-mt)*g+mr;
-    Rc.push(boxBlur(A,cw,ch)); Tc.push(boxBlur(B,cw,ch)); }
-  function cd(P1,i,P2,j){ var a=Math.abs(P1[0][i]-P2[0][j]), b=Math.abs(P1[1][i]-P2[1][j]), c=Math.abs(P1[2][i]-P2[2][j]); return (a+b+c)/6+Math.max(a,b,c)/2; }
-  var th=sens2th(o.sens||5), th0=th*0.9, D=new Float32Array(cn), RAD=2;
-  for(var y4=0;y4<ch;y4++) for(var x4=0;x4<cw;x4++){ var i4=y4*cw+x4; if(!valid[i4]||!inRoi(x4,y4,2)) continue;
-    var d0=cd(Tc,i4,Rc,i4); if(d0<=th0){ D[i4]=d0; continue; }
-    var m1=1e9, m2=1e9;
-    for(var dy=-RAD;dy<=RAD;dy++){ var y5=y4+dy; if(y5<0||y5>=ch) continue; for(var dx=-RAD;dx<=RAD;dx++){ var x5=x4+dx; if(x5<0||x5>=cw) continue; var j=y5*cw+x5;
-      var a1=cd(Tc,i4,Rc,j); if(a1<m1) m1=a1; var a2=cd(Rc,i4,Tc,j); if(a2<m2) m2=a2; } }
-    D[i4]=Math.max(m1,m2); }
-  var M=new Uint8Array(cn); for(var z2=0;z2<cn;z2++) M[z2]=D[z2]>th?1:0;
-  // 잡티 제거: 이웃이 1개 이하인 외톨이 점만 지움 (가는 스크래치는 살림 — 3×3 열림 연산은 가는 선까지 지워버림)
-  function clean(S){ var O=new Uint8Array(cn); for(var y=1;y<ch-1;y++) for(var x=1;x<cw-1;x++){ var i=y*cw+x; if(!S[i]) continue; var nb=S[i-cw-1]+S[i-cw]+S[i-cw+1]+S[i-1]+S[i+1]+S[i+cw-1]+S[i+cw]+S[i+cw+1]; O[i]=nb>=2?1:0; } return O; }
-  M=clean(clean(M));
-  var lab=new Int32Array(cn), blobs=[], stack=[], minA=o.minSize||8;
-  for(var s0=0;s0<cn;s0++){ if(!M[s0]||lab[s0]) continue; var id=blobs.length+1, area=0, bx0=1e9,by0=1e9,bx1=-1,by1=-1, peak=0; stack.push(s0); lab[s0]=id;
-    while(stack.length){ var p=stack.pop(), px2=p%cw, py2=(p-px2)/cw; area++; if(px2<bx0)bx0=px2; if(px2>bx1)bx1=px2; if(py2<by0)by0=py2; if(py2>by1)by1=py2; if(D[p]>peak)peak=D[p];
-      for(var ny=-1;ny<=1;ny++) for(var nx=-1;nx<=1;nx++){ var a3=px2+nx, b3=py2+ny; if(a3<0||b3<0||a3>=cw||b3>=ch) continue; var qq=b3*cw+a3; if(M[qq]&&!lab[qq]){ lab[qq]=id; stack.push(qq);} } }
-    if(area>=minA) blobs.push({x:bx0,y:by0,w:bx1-bx0+1,h:by1-by0+1,area:area,peak:peak}); }
-  var merged=true; while(merged){ merged=false;
-    for(var a4=0;a4<blobs.length&&!merged;a4++) for(var b4=a4+1;b4<blobs.length;b4++){ var E=blobs[a4], F=blobs[b4], gap=16;
-      if(E.x-gap<F.x+F.w && F.x-gap<E.x+E.w && E.y-gap<F.y+F.h && F.y-gap<E.y+E.h){ var nx0=Math.min(E.x,F.x), ny0=Math.min(E.y,F.y);
-        blobs[a4]={x:nx0,y:ny0,w:Math.max(E.x+E.w,F.x+F.w)-nx0,h:Math.max(E.y+E.h,F.y+F.h)-ny0,area:E.area+F.area,peak:Math.max(E.peak,F.peak)}; blobs.splice(b4,1); merged=true; break; } } }
-  blobs.sort(function(a,b){ return b.area-a.area; });
-  var tot=0; blobs.forEach(function(b){ tot+=b.area; });
-  return {retake:false, ncc:al.ncc, al:al, X0:X0, Y0:Y0, w:cw, h:ch, blobs:blobs, areaPct:tot/Math.max(1,(rx1-rx0)*(ry1-ry0))*100, tw:tw, ms:performance.now()-T0};
-}
-function cropCanvas(res){ var c=document.createElement("canvas"); c.width=res.w; c.height=res.h; var x=c.getContext("2d"), id=x.createImageData(res.w,res.h); id.data.set(res.tw); x.putImageData(id,0,0); return c; }
-/* boxes 좌표 × scale = 그릴 위치, lw = 선 굵기 배율(생략하면 scale) */
+function sleep(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
+function srcSize(s){ return {w:s.videoWidth||s.naturalWidth||s.width, h:s.videoHeight||s.naturalHeight||s.height}; }
+function b64(u8){ var s=""; for(var i=0;i<u8.length;i+=0x8000) s+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000)); return btoa(s); }
+function unb64(t){ var s=atob(t), u=new Uint8Array(s.length); for(var i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u; }
+function r2(v){ return Math.round(v*100)/100; }
+var C_OK="#2BD49A", C_NG="#FF5A64", C_WAIT="#F5B547";
+
 function drawBrackets(x, boxes, scale, color, lw){
   var k=lw||scale;
   boxes.forEach(function(b,i){ var p=5, bx=(b.x-p)*scale, by=(b.y-p)*scale, bw=(b.w+p*2)*scale, bh=(b.h+p*2)*scale, L=Math.max(7*k,Math.min(bw,bh)*0.3);
@@ -463,163 +677,299 @@ function drawBrackets(x, boxes, scale, color, lw){
 }
 
 /* ========== 상태 ========== */
-var items=[], prepCache={}, settings=lsGet("ag_live_settings",{auto:true,save:true,sound:true,fixed:true,ghost:false});
+var items=[], refsCache={};
+var settings=lsGet("ag_live_settings2",{save:true,sound:true,careful:false});
+var stationCfg=Object.assign({skin:true,gloves:[],T:70,bgAt:0,lock:true,adapt:true}, lsGet("ag_live_station",{}));
 var stream=null, track=null, torchOn=false, running=false, wakeLock=null, audioCtx=null;
-var phase="armed", stable=0, votes=[], lastRes=null, prevTiny=null, motion=99, absentCount=0, lastRecord=null, chosenTypes=[];
+var tracks=[], trackSeq=0, frameNo=0, lastRecord=null, lastShown=null, chosenTypes=[], bgBusy=false, pausedUntil=0, picking=false;
+var MISS_MS=1200;
 function curItem(){ return items.find(function(i){ return i.id===$("itemSel").value; }); }
+
+/* ========== 검사 자리(바탕·제외 색) ========== */
+function applyStation(){ ENG.station.skin=!!stationCfg.skin; ENG.station.gloves=(stationCfg.gloves||[]).map(function(g){ return g.slice(); }); ENG.station.T=stationCfg.T||70; }
+function saveStation(){ lsSet("ag_live_station",stationCfg); applyStation(); renderStation(); }
+async function loadBg(){ var u=null; try{ u=localStorage.getItem("ag_live_bg"); }catch(e){} if(!u) return; try{ ENG.setBackground([await loadImage(u)]); }catch(e){} }
+function bgToDataURL(){ var st=ENG.station, w=st.bgW, h=st.bgH, c=document.createElement("canvas"); c.width=w; c.height=h; var x=c.getContext("2d"), id=x.createImageData(w,h);
+  for(var i=0;i<w*h;i++){ id.data[i*4]=st.bg[i*3]; id.data[i*4+1]=st.bg[i*3+1]; id.data[i*4+2]=st.bg[i*3+2]; id.data[i*4+3]=255; } x.putImageData(id,0,0); return c.toDataURL("image/jpeg",0.95); }
+async function captureBg(){
+  if(!running){ toast("카메라를 먼저 켜세요"); return; }
+  bgBusy=true; $("bgBtn").disabled=true; setState("judge","바탕 등록 중 — 빈 자리를 그대로 비춰주세요");
+  var v=$("video"), frames=[];
+  for(var i=0;i<8;i++){ var z=srcSize(v), c=document.createElement("canvas"); c.width=z.w; c.height=z.h; c.getContext("2d").drawImage(v,0,0); frames.push(c); await sleep(90); }
+  ENG.setBackground(frames);
+  try{ localStorage.setItem("ag_live_bg", bgToDataURL()); }catch(e){}
+  var locked = stationCfg.lock ? await lockCamera(true) : "";
+  stationCfg.bgAt=Date.now(); saveStation(); tracks=[];
+  var left=ENG.segmentOnly(v).objs.length;
+  bgBusy=false; $("bgBtn").disabled=false;
+  toast(left ? "바탕을 등록했지만 물체가 남아 보입니다. 빈 자리만 비추고 다시 누르세요" : "바탕을 등록했습니다"+(locked?" ("+locked+" 고정)":"")+". 이제 제품을 올려주세요");
+}
+/* 노출·화이트밸런스·초점을 지금 값으로 고정 (지원하는 폰만). 고정하지 않으면 흰 제품이 들어올 때 자동 노출로 바탕 밝기가 변함 */
+async function lockCamera(on){
+  if(!track||!track.getCapabilities) return ""; var caps=track.getCapabilities(), st=track.getSettings?track.getSettings():{}, done=[];
+  async function tryC(c, name){ try{ await track.applyConstraints({advanced:[c]}); done.push(name); }catch(e){} }
+  if(on){
+    if((caps.exposureMode||[]).indexOf("manual")>=0){ var c1={exposureMode:"manual"}; if(st.exposureTime) c1.exposureTime=st.exposureTime; if(st.iso) c1.iso=st.iso; await tryC(c1,"밝기"); }
+    if((caps.whiteBalanceMode||[]).indexOf("manual")>=0){ var c2={whiteBalanceMode:"manual"}; if(st.colorTemperature) c2.colorTemperature=st.colorTemperature; await tryC(c2,"색감"); }
+    if((caps.focusMode||[]).indexOf("manual")>=0 && st.focusDistance!=null){ await tryC({focusMode:"manual", focusDistance:st.focusDistance},"초점"); }
+  } else {
+    if((caps.exposureMode||[]).indexOf("continuous")>=0) await tryC({exposureMode:"continuous"},"밝기");
+    if((caps.whiteBalanceMode||[]).indexOf("continuous")>=0) await tryC({whiteBalanceMode:"continuous"},"색감");
+    if((caps.focusMode||[]).indexOf("continuous")>=0) await tryC({focusMode:"continuous"},"초점");
+  }
+  return done.join("·"); }
+function clearBg(){ if(track) lockCamera(false); ENG.station.bg=null; ENG.station.bgW=0; ENG.station.bgH=0; try{ localStorage.removeItem("ag_live_bg"); }catch(e){} stationCfg.bgAt=0; saveStation(); toast("바탕을 지웠습니다 (가장자리 색으로 바탕을 추정합니다)"); }
+function togglePick(){ if(!running){ toast("카메라를 먼저 켜세요"); return; } picking=!picking; $("stage").classList.toggle("picking",picking); $("pickMsg").hidden=!picking; $("gloveBtn").classList.toggle("on",picking); }
+function pickAt(e){
+  var ov=$("overlay"), v=$("video"), b=ov.getBoundingClientRect(), z=srcSize(v); if(!z.w) return;
+  var W=b.width, H=b.height, s=Math.min(W/z.w,H/z.h), ox=(W-z.w*s)/2, oy=(H-z.h*s)/2, vx=(e.clientX-b.left-ox)/s, vy=(e.clientY-b.top-oy)/s;
+  if(vx<0||vy<0||vx>=z.w||vy>=z.h) return;
+  var c=document.createElement("canvas"); c.width=9; c.height=9; var x=c.getContext("2d",{willReadFrequently:true}); x.drawImage(v,Math.max(0,vx-4),Math.max(0,vy-4),9,9,0,0,9,9);
+  var d=x.getImageData(0,0,9,9).data, r=0,g=0,bl=0; for(var i=0;i<81;i++){ r+=d[i*4]; g+=d[i*4+1]; bl+=d[i*4+2]; }
+  var col=[Math.round(r/81),Math.round(g/81),Math.round(bl/81),60];
+  stationCfg.gloves=(stationCfg.gloves||[]).concat([col]).slice(-6); saveStation(); togglePick(); tracks=[];
+  toast("제외할 색을 등록했습니다");
+}
+function renderStation(){
+  var g=stationCfg.gloves||[];
+  $("gloveList").innerHTML = g.length ? g.map(function(c,i){ return '<span class="glove"><i style="background:rgb('+c[0]+','+c[1]+','+c[2]+')"></i>색 '+(i+1)+'<button type="button" data-glove="'+i+'" aria-label="색 '+(i+1)+' 지우기">×</button></span>'; }).join("") : '<span class="hint">없음 — 검사 화면의 \'장갑 색\'을 누르고 장갑을 터치하세요</span>';
+  $("bgInfo").textContent = stationCfg.bgAt ? "등록됨 · "+new Date(stationCfg.bgAt).toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}) : "등록 안 됨 — 가장자리 색으로 바탕을 추정합니다";
+  $("swSkin").checked=!!stationCfg.skin; $("swLock").checked=!!stationCfg.lock; $("swAdapt").checked=!!stationCfg.adapt; $("segT").value=stationCfg.T||70; $("segTV").textContent=$("segT").value;
+  renderStatus();
+}
+function renderStatus(){
+  var it=curItem(), n=it&&it.refs?it.refs.length:0;
+  $("statusLine").innerHTML = '<span>바탕 '+(stationCfg.bgAt?'<b>등록됨</b>':'<b class="warn">미등록</b>')+'</span><span>제외 색 <b>'+((stationCfg.gloves||[]).length)+'</b>개'+(stationCfg.skin?' + 맨손':'')+'</span>'+(it?'<span>기준 장면 '+(n?'<b>'+n+'</b>장':'<b class="warn">없음</b>')+'</span>':'');
+}
+
+/* ========== 기준 장면 ========== */
+async function prepToStored(T){ var b=await canvasBlob(T.canvas,0.92); return {w:T.w, h:T.h, jpg:b, m:ENG.packMask(T.mask), e:ENG.packMask(T.ex), sa:T.segArea||0}; }
+/* 기준 장면들의 화면 속 크기(중앙값) — 이보다 훨씬 큰 덩어리는 제품이 붙어 있는 것 */
+function refAreaOf(it){ var a=(it.refs||[]).map(function(r){ return r.sa||0; }).filter(function(v){ return v>0; }).sort(function(x,y){ return x-y; }); return a.length>=3 ? a[a.length>>1] : 0; }
+async function storedToPrep(r){ var u=URL.createObjectURL(r.jpg); try{ var im=await loadImage(u); return ENG.slim(ENG.refFromStored(im, r.w, r.h, r.m, r.e)); } finally { URL.revokeObjectURL(u); } }
+/* 이전 방식(사진 1장 + 검사 영역)으로 만든 품목은 그 사진에서 제품을 잘라 기준 장면 1장으로 바꿈 */
+async function migrateV1(it){
+  try{ var u=URL.createObjectURL(it.ref), im=await loadImage(u); URL.revokeObjectURL(u);
+    var roi=it.roi||{x:0,y:0,w:1,h:1}, mx=roi.w*0.08, my=roi.h*0.08, sx=Math.max(0,roi.x-mx)*im.width, sy=Math.max(0,roi.y-my)*im.height, sw=Math.min(1,roi.x+roi.w+mx)*im.width-sx, sh=Math.min(1,roi.y+roi.h+my)*im.height-sy;
+    var c=document.createElement("canvas"); c.width=Math.round(sw); c.height=Math.round(sh); c.getContext("2d").drawImage(im,sx,sy,sw,sh,0,0,c.width,c.height);
+    var T=ENG.largestObject(c,true); it.refs = T ? [await prepToStored(T)] : []; if(T){ delete it.ref; delete it.roi; }
+  }catch(e){ it.refs=[]; }
+  it.v=2; await dbPut("items", it);
+  toast("이전 기준 사진을 새 방식으로 바꿨습니다. 돌리며 다시 녹화하면 훨씬 정확해집니다");
+}
+async function getRefs(it){
+  if(refsCache[it.id]) return refsCache[it.id];
+  if(!it.refs && it.ref) await migrateV1(it);
+  setState("judge","기준 장면 불러오는 중…");
+  var out=[]; for(var i=0;i<(it.refs||[]).length;i++){ try{ out.push(await storedToPrep(it.refs[i])); }catch(e){} }
+  out.refArea=refAreaOf(it); out.refAreaMax=Math.max.apply(null,[0].concat((it.refs||[]).map(function(r){ return r.sa||0; })));
+  out.refAspect = out.length ? [Math.min.apply(null,out.map(function(r){ return r.aspect; })), Math.max.apply(null,out.map(function(r){ return r.aspect; }))] : [0,99];
+  refsCache[it.id]=out; renderStatus(); return out;
+}
 
 /* ========== 카메라 ========== */
 async function startCamera(){
+  if(stream) return;
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ $("camMsg").textContent="이 브라우저에서는 카메라를 쓸 수 없습니다. 안드로이드 크롬에서 https 주소로 열어주세요."; return; }
-  try{
-    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}, width:{ideal:1280}, height:{ideal:960}}, audio:false});
-  }catch(e){ $("camMsg").textContent = (e&&e.name==="NotAllowedError") ? "카메라 권한이 거부되었습니다. 주소창 왼쪽 자물쇠 → 권한에서 카메라를 허용해주세요." : "카메라를 켜지 못했습니다 ("+(e&&e.name||"오류")+")"; return; }
+  try{ stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}, width:{ideal:1280}, height:{ideal:960}}, audio:false}); }
+  catch(e){ $("camMsg").textContent = (e&&e.name==="NotAllowedError") ? "카메라 권한이 거부되었습니다. 주소창 왼쪽 자물쇠 → 권한에서 카메라를 허용해주세요." : "카메라를 켜지 못했습니다 ("+(e&&e.name||"오류")+")"; return; }
   track=stream.getVideoTracks()[0];
-  $("video").srcObject=stream; $("capVideo").srcObject=stream;
-  try{ await $("video").play(); }catch(e){}
+  $("video").srcObject=stream; try{ await $("video").play(); }catch(e){}
   $("camOff").hidden=true; $("stateTag").hidden=false; $("fps").hidden=false;
   var caps=track.getCapabilities?track.getCapabilities():{}; $("torchBtn").disabled=!caps.torch;
   if(!audioCtx){ try{ audioCtx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
-  requestWake();
-  running=true; phase="armed"; stable=0; votes=[]; loop();
+  requestWake(); running=true; loop();
+  if(!stationCfg.bgAt) toast("먼저 빈 자리를 비추고 '바탕 등록'을 누르면 더 정확합니다");
 }
 async function requestWake(){ try{ if(navigator.wakeLock) wakeLock=await navigator.wakeLock.request("screen"); }catch(e){} }
 document.addEventListener("visibilitychange", function(){ if(document.visibilityState==="visible" && running) requestWake(); });
 async function toggleTorch(){ if(!track) return; torchOn=!torchOn; try{ await track.applyConstraints({advanced:[{torch:torchOn}]}); $("torchBtn").classList.toggle("on",torchOn); }catch(e){ torchOn=false; toast("이 폰에서는 조명을 켤 수 없습니다"); } }
 function beep(ok){
   if(!settings.sound) return;
-  try{ if(navigator.vibrate) navigator.vibrate(ok?40:[180,90,180]); }catch(e){}
+  try{ if(navigator.vibrate) navigator.vibrate(ok?35:[180,90,180]); }catch(e){}
   if(!audioCtx) return;
-  try{ var t=audioCtx.currentTime, tones=ok?[[1320,0,0.09]]:[[330,0,0.16],[330,0.22,0.16]];
-    tones.forEach(function(a){ var o=audioCtx.createOscillator(), g=audioCtx.createGain(); o.type=ok?"sine":"square"; o.frequency.value=a[0]; g.gain.setValueAtTime(0.0001,t+a[1]); g.gain.exponentialRampToValueAtTime(0.25,t+a[1]+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+a[1]+a[2]); o.connect(g); g.connect(audioCtx.destination); o.start(t+a[1]); o.stop(t+a[1]+a[2]+0.02); }); }catch(e){}
+  try{ var t=audioCtx.currentTime, tones=ok?[[1320,0,0.08]]:[[330,0,0.16],[330,0.22,0.16]];
+    tones.forEach(function(a){ var o=audioCtx.createOscillator(), g=audioCtx.createGain(); o.type=ok?"sine":"square"; o.frequency.value=a[0]; g.gain.setValueAtTime(0.0001,t+a[1]); g.gain.exponentialRampToValueAtTime(ok?0.15:0.25,t+a[1]+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+a[1]+a[2]); o.connect(g); g.connect(audioCtx.destination); o.start(t+a[1]); o.stop(t+a[1]+a[2]+0.02); }); }catch(e){}
 }
 
 /* ========== 실시간 반복 ==========
-   대기 → (제품 감지 + 흔들림 없음) 3프레임 연속 → 다수결 판정 → 결과 유지 → 제품을 내리면 다시 대기 */
-var tinyC=document.createElement("canvas"); tinyC.width=64; tinyC.height=48; var tinyX=tinyC.getContext("2d",{willReadFrequently:true});
-function measureMotion(v){ tinyX.drawImage(v,0,0,64,48); var d=tinyX.getImageData(0,0,64,48).data, g=new Float32Array(64*48), s=0;
-  for(var i=0,j=0;i<g.length;i++,j+=4){ g[i]=0.299*d[j]+0.587*d[j+1]+0.114*d[j+2]; if(prevTiny) s+=Math.abs(g[i]-prevTiny[i]); }
-  var m=prevTiny?s/g.length:99; prevTiny=g; return m; }
-async function getPrep(it){
-  if(prepCache[it.id]) return prepCache[it.id];
-  var url=URL.createObjectURL(it.ref), im=await loadImage(url); URL.revokeObjectURL(url);
-  var R=prepareRef(im, it.roi); R.img=im; prepCache[it.id]=R; return R; }
-var frameN=0, fpsT=performance.now();
+   매 프레임: 화면 속 제품을 모두 찾아 각각 판정 → 위치로 이어 붙여 '같은 제품'을 추적
+   같은 제품에서 결함이 연속 2장(신중 모드 3장) 보이면 즉시 불량 확정·경고
+   제품이 화면에서 사라지면(1.2초) 그 제품의 최종 결과를 기록 */
+var fpsN=0, fpsT=performance.now(), lastRes=null;
 async function loop(){
   if(!running) return;
   var v=$("video"), it=curItem(), t0=performance.now();
-  if(it && v.readyState>=2){
+  var active=it && v.readyState>=2 && $("itemModal").hidden && !bgBusy && !$("view-live").hidden && t0>pausedUntil;
+  if(active){
     try{
-      var R=await getPrep(it);
-      motion=measureMotion(v);
-      var res=analyzeFrame(R, v, {sens:it.sens, minSize:it.minSize, fixed:settings.fixed});
-      lastRes=res; step(res, it); drawOverlay(res, R);
-      frameN++; var now=performance.now(); if(now-fpsT>1000){ $("fps").textContent=(frameN*1000/(now-fpsT)).toFixed(1)+"회/초 · "+Math.round(res.ms||0)+"ms"; frameN=0; fpsT=now; }
+      var refs=await getRefs(it);
+      if(!refs.length){ setState("wait","이 품목은 기준 장면이 없습니다 — 품목·설정에서 녹화하세요"); clearOverlay(); }
+      else {
+        var res=ENG.frame(v, refs, {sens:it.sens, minSize:it.minSize, topK:3, maxObjs:6, skip:skipSettled, refArea:refs.refArea, refAreaMax:refs.refAreaMax, refAspect:refs.refAspect, adaptBg:!!(stationCfg.adapt&&stationCfg.bgAt)}); lastRes=res;
+        if(ENG.station.bgAdapted && ENG.station.bgAdapted%150===0){ try{ localStorage.setItem("ag_live_bg", bgToDataURL()); }catch(e){} ENG.station.bgAdapted++; }
+        await trackStep(res, v, it, refs.length); drawLive(res); renderLive();
+        fpsN++; var now=performance.now(); if(now-fpsT>1000){ $("fps").textContent=(fpsN*1000/(now-fpsT)).toFixed(1)+"회/초 · "+Math.round(res.ms)+"ms"; fpsN=0; fpsT=now; }
+      }
     }catch(e){ console.error(e); }
   } else if(!it){ setState("wait","품목을 먼저 등록하세요"); }
-  var el=performance.now()-t0; setTimeout(loop, Math.max(30, 120-el));
+  setTimeout(loop, Math.max(15, 70-(performance.now()-t0)));
 }
-function present(res){ return res && !res.retake && res.ncc>=0.5; }
-function setState(cls, text){ var s=$("stateTag"); s.className="state "+cls; s.textContent=text; }
-function step(res, it){
-  var pres=present(res), still=motion<2.2;
-  if(phase==="armed"){
-    if(!pres){ stable=0; votes=[]; setState("wait","제품을 검사 영역에 올려주세요"); return; }
-    if(!still){ stable=0; votes=[]; setState("move","흔들림 — 잠시 그대로 두세요"); return; }
-    if(!settings.auto){ setState("judge","준비됨 — '지금 판정'을 누르세요"); return; }
-    stable++; votes.push(res); setState("judge","판정 중 "+Math.min(stable,3)+"/3");
-    if(stable>=3) decide(votes.slice(-3), it, "자동");
-  } else if(phase==="hold"){
-    if(!pres){ absentCount++; if(absentCount>=2){ phase="armed"; stable=0; votes=[]; absentCount=0; setState("wait","다음 제품을 올려주세요"); idleVerdict(); } }
-    else { absentCount=0; setState("wait","결과 확인 후 제품을 내려주세요"); }
-  }
+/* 이미 불량 확정이거나 기록이 끝난 제품은 다시 판정하지 않음(위치만 추적) */
+function skipSettled(o){ var cx=o.x+o.w/2, cy=o.y+o.h/2; return tracks.some(function(tr){ return (tr.isNg||tr.done) && Math.hypot(cx-tr.cx,cy-tr.cy)<Math.max(tr.w,tr.h,o.w,o.h)*0.5 && Math.abs(o.w-tr.w)<tr.w*0.3; }); }
+function newTrack(now){ return {id:++trackSeq, n:0, ok:0, ng:0, unk:0, merged:0, run:0, views:{}, nViews:0, t0:now, last:now, isNg:false, done:false, shot:null, ngInfo:null, bestNcc:0}; }
+async function trackStep(res, v, it, nRefs){
+  frameNo++; var now=performance.now(), objs=res.objs, need=settings.careful?3:2;
+  objs.forEach(function(o){ o.cx=o.seg.x+o.seg.w/2; o.cy=o.seg.y+o.seg.h/2; o.tr=null; });
+  var pairs=[]; tracks.forEach(function(tr){ objs.forEach(function(o){ var d=Math.hypot(o.cx-tr.cx,o.cy-tr.cy), lim=Math.max(tr.w,tr.h,o.seg.w,o.seg.h)*0.75; if(d<lim) pairs.push([d,tr,o]); }); });
+  pairs.sort(function(a,b){ return a[0]-b[0]; });
+  var uT=[], uO=[]; pairs.forEach(function(p){ if(uT.indexOf(p[1])>=0||uO.indexOf(p[2])>=0) return; uT.push(p[1]); uO.push(p[2]); p[2].tr=p[1]; });
+  objs.forEach(function(o){ if(!o.tr && o.status!=="skip"){ o.tr=newTrack(now); tracks.push(o.tr); } });
+  objs.forEach(function(o){ var tr=o.tr; if(!tr) return; tr.cx=o.cx; tr.cy=o.cy; tr.w=o.seg.w; tr.h=o.seg.h; tr.last=now; tr.frame=frameNo; if(o.status!=="skip"||!tr.cur) tr.cur=o; else tr.cur=Object.assign({},tr.cur,{seg:o.seg,stale:true}); tr.nRefs=nRefs;
+    if(tr.done||o.status==="skip") return;
+    tr.n++;
+    if(o.status==="ng"){ tr.run++; tr.ng++; tr.edgeOnly = o.blobs.every(function(b){ return b.edge; }); } else tr.run=0;
+    if(o.status==="ok"||o.status==="ng"){ if(o.status==="ok") tr.ok++; if(o.ref>=0 && !tr.views[o.ref]){ tr.views[o.ref]=1; tr.nViews++; } if(o.ncc>tr.bestNcc) tr.bestNcc=o.ncc; }
+    if(o.status==="unknown") tr.unk++;
+    if(o.status==="merged") tr.merged++;
+    tr.cov = tr.nRefs ? Math.round(tr.nViews/tr.nRefs*100) : 0;
+    if(o.status==="ng" && tr.run>=need+(tr.edgeOnly?1:0) && !tr.isNg){ tr.isNg=true; tr.shot=snapshot(v,res,o); tr.ngT=o.T; tr.ngInfo={n:o.blobs.length, a:o.areaPct, ncc:o.ncc}; beep(false); flashVerdict(); }
+    if(!tr.isNg && it.keepOk && o.status==="ok" && (tr.ok===2||tr.ok%12===0)) tr.shot=snapshot(v,res,o);
+  });
+  var gone=tracks.filter(function(tr){ return now-tr.last>MISS_MS; });
+  for(var i=0;i<gone.length;i++){ if(!gone[i].done) await finalize(gone[i],"자동"); }
+  tracks=tracks.filter(function(tr){ return gone.indexOf(tr)<0; });
 }
-/* 3장 중 2장 이상에서 의심 부위가 잡혀야 불량 — 반사·노이즈로 한 장만 튀는 오판정을 줄임 */
-async function decide(frames, it, method){
-  var ngFrames=frames.filter(function(r){ return r.blobs.length>0; });
-  var verdict = ngFrames.length*2>=frames.length+1 ? "NG" : "OK";
-  var best = verdict==="NG" ? ngFrames[ngFrames.length-1] : frames[frames.length-1];
-  phase="hold"; absentCount=0;
-  showVerdict(verdict, best, method);
-  beep(verdict==="OK");
-  if(settings.save) await saveRecord(verdict, best, it, method);
+/* 기록용 사진: 원본 영상에서 제품 주변을 잘라냄(최대 520px) + 의심 부위 위치(사진 기준 비율) */
+function snapshot(src, res, o){
+  var z=srcSize(src), k=z.w/res.w, m=0.15, sx=Math.max(0,(o.seg.x-o.seg.w*m)*k), sy=Math.max(0,(o.seg.y-o.seg.h*m)*k), ex=Math.min(z.w,(o.seg.x+o.seg.w*(1+m))*k), ey=Math.min(z.h,(o.seg.y+o.seg.h*(1+m))*k);
+  var cw=ex-sx, ch=ey-sy, sc=Math.min(1,520/Math.max(cw,ch)), c=document.createElement("canvas"); c.width=Math.max(1,Math.round(cw*sc)); c.height=Math.max(1,Math.round(ch*sc));
+  c.getContext("2d").drawImage(src,sx,sy,cw,ch,0,0,c.width,c.height);
+  var hk=z.w/res.hiW, T=o.T;
+  var bx=(o.blobs||[]).slice(0,20).map(function(b){ var x0=(T.X0+b.x/T.s)*hk, y0=(T.Y0+b.y/T.s)*hk, x1=(T.X0+(b.x+b.w)/T.s)*hk, y1=(T.Y0+(b.y+b.h)/T.s)*hk;
+    return [+((x0-sx)/cw).toFixed(4), +((y0-sy)/ch).toFixed(4), +((x1-x0)/cw).toFixed(4), +((y1-y0)/ch).toFixed(4)]; });
+  return {canvas:c, bx:bx};
 }
-function showVerdict(v, res, method){
-  var box=$("verdict"); box.className="verdict "+(v==="OK"?"ok":"ng"); void box.offsetWidth; box.classList.add("flash");
-  $("vBig").textContent = v==="OK" ? "양품" : "불량";
-  $("vSub").textContent = v==="OK" ? "의심 부위 없음 · 위치 맞춤 "+Math.round(res.ncc*100)+"%" : "의심 부위 "+res.blobs.length+"곳 · 차이 면적 "+res.areaPct.toFixed(2)+"%";
-  chosenTypes=[]; renderChips(); $("fixBox").hidden=false; $("typeChips").hidden = v!=="NG";
-  frozen = {res:res, v:v}; lastShown={v:v, t:Date.now()};
-  $("fixOk").textContent="양품으로 정정"; $("fixNg").textContent="불량으로 정정";
+async function finalize(tr, method){
+  if(tr.done) return null; tr.done=true;
+  var v = tr.isNg ? "NG" : (tr.ok>=2 ? "OK" : null);
+  if(!v){ if(tr.merged>=3) toast("붙어 있는 제품은 판정하지 않았습니다. 조금씩 떼어 놓아주세요"); else if(tr.n>=4 && tr.unk>=tr.n*0.6) toast("기준 장면과 많이 다른 물체가 있어 판정하지 않았습니다"); tr.skip=true; return null; }
+  var it0=curItem(), need=it0&&it0.minCov||0, partial = v==="OK" && need>0 && (tr.cov||0)<need && method!=="확정 버튼";
+  tr.v=v; tr.partial=partial; lastShown={v:v, t:Date.now()};
+  if(partial){ beep(false); toast("#"+tr.id+" 관찰 범위 "+(tr.cov||0)+"% — 기준 "+need+"%에 못 미쳐 '부분 검사'로 기록했습니다"); }
+  else if(v==="OK") beep(true);
+  lastNgT = v==="NG" ? tr.ngT : null;
+  if(!settings.save) return null;
+  var it=curItem(); if(!it) return null;
+  var rec={id:rid(), t:Date.now(), day:ymd(new Date()), itemId:it.id, item:it.name, cat:it.cat, lot:$("lotInput").value.trim(), v:v, m:partial?"부분 검사":method, av:v,
+    n: tr.isNg?tr.ngInfo.n:0, a: tr.isNg?r2(tr.ngInfo.a):0, al:r2(tr.isNg?tr.ngInfo.ncc:tr.bestNcc), views:tr.nViews, cov: tr.nRefs?Math.round(tr.nViews/tr.nRefs*100):0,
+    dur: Math.round((tr.last-tr.t0)/100)/10, frames:tr.n, types:[], photo:null, bx:[]};
+  if(tr.shot && (v==="NG" || it.keepOk)){ rec.photo=await canvasBlob(tr.shot.canvas,0.85); rec.bx=tr.shot.bx; }
+  try{ await dbPut("records", rec); lastRecord=rec; tr.rec=rec; refreshTally(); chosenTypes=[]; renderChips(); $("fixBox").hidden=false; $("typeChips").hidden = v!=="NG"; $("learnBtn").hidden=true; }
+  catch(e){ toast("저장 공간이 부족해 기록을 저장하지 못했습니다"); }
+  return rec;
 }
-var frozen=null, lastShown=null;
-/* 제품을 내리면 큰 판정 표시는 '대기'로 돌리고, 직전 결과는 작은 글씨로 남김 (다음 제품 결과와 헷갈리지 않게) */
-function idleVerdict(){
-  var box=$("verdict"); box.className="verdict idle"; $("vBig").textContent="다음 제품 대기";
-  $("vSub").textContent = lastShown ? "직전: "+(lastShown.v==="OK"?"양품":"불량")+" · "+hm(lastShown.t) : "검사 영역에 제품을 올려주세요";
-  $("fixOk").textContent="직전 판정을 양품으로"; $("fixNg").textContent="직전 판정을 불량으로";
-}
-function drawOverlay(res, R){
-  var ov=$("overlay"), v=$("video"), W=ov.clientWidth, H=ov.clientHeight, dpr=Math.min(2,window.devicePixelRatio||1);
-  if(ov.width!==Math.round(W*dpr)||ov.height!==Math.round(H*dpr)){ ov.width=Math.round(W*dpr); ov.height=Math.round(H*dpr); }
-  var x=ov.getContext("2d"); x.setTransform(dpr,0,0,dpr,0,0); x.clearRect(0,0,W,H);
-  var z=srcSize(v); if(!z.w) return;
-  var s=Math.min(W/z.w,H/z.h), dw=z.w*s, dh=z.h*s, ox=(W-dw)/2, oy=(H-dh)/2, k=dw/R.w; // 작업 좌표 → 화면
-  if(settings.ghost && R.img){ x.globalAlpha=0.32; x.drawImage(R.img,ox,oy,dw,dh); x.globalAlpha=1; }
-  var roi=R.roi; x.setLineDash([7,5]); x.strokeStyle="rgba(25,195,156,.75)"; x.lineWidth=1.6; x.strokeRect(ox+roi.x*dw, oy+roi.y*dh, roi.w*dw, roi.h*dh); x.setLineDash([]);
-  if(!present(res)) return;
-  // 의심 부위: 정렬된 좌표 → 실제 영상 위치로 되돌려 그림
-  var al=res.al, P=al.P, c=Math.cos(P.th)*P.s, sn=Math.sin(P.th)*P.s;
-  function toScreen(px,py){ var ix=px-al.cx, iy=py-al.cy; return [ox+(al.cx+c*ix-sn*iy+P.dx)*k, oy+(al.cy+sn*ix+c*iy+P.dy)*k]; }
-  var color = phase==="hold" && frozen ? (frozen.v==="NG"?"#FF5A64":"#2BD49A") : "#F5B547";
-  var boxes=res.blobs.map(function(b){ var p1=toScreen(res.X0+b.x, res.Y0+b.y), p2=toScreen(res.X0+b.x+b.w, res.Y0+b.y+b.h); return {x:Math.min(p1[0],p2[0]), y:Math.min(p1[1],p2[1]), w:Math.abs(p2[0]-p1[0]), h:Math.abs(p2[1]-p1[1])}; });
-  drawBrackets(x, boxes, 1, color);
-}
-
-/* ========== 기록 ========== */
-async function saveRecord(v, res, it, method){
-  var rec={id:rid(), t:Date.now(), day:ymd(new Date()), itemId:it.id, item:it.name, cat:it.cat, lot:$("lotInput").value.trim(), v:v, m:method,
-    av: res.blobs.length?"NG":"OK", n:res.blobs.length, a:Math.round(res.areaPct*100)/100, al:Math.round(res.ncc*100)/100, types:[], photo:null,
-    bx: res.blobs.slice(0,20).map(function(b){ return [+(b.x/res.w).toFixed(4), +(b.y/res.h).toFixed(4), +(b.w/res.w).toFixed(4), +(b.h/res.h).toFixed(4)]; })};
-  if(v==="NG" || it.keepOk){ rec.photo=await canvasBlob(cropCanvas(res),0.82); }
-  try{ await dbPut("records", rec); lastRecord=rec; refreshTally(); }catch(e){ toast("저장 공간이 부족해 기록을 저장하지 못했습니다"); }
+async function finishAll(){
+  var list=tracks.filter(function(t){ return !t.done; }), n=0;
+  for(var i=0;i<list.length;i++){ if(await finalize(list[i],"확정 버튼")) n++; }
+  toast(n ? n+"개 결과를 기록했습니다. 제품을 내려주세요" : "기록할 결과가 없습니다");
 }
 async function fixLast(v){
-  if(!lastRecord){ if(frozen && lastRes){ await saveRecord(v, frozen.res, curItem(), "수동"); toast("저장했습니다"); } return; }
+  if(!lastRecord){ toast("정정할 기록이 없습니다"); return; }
   lastRecord.v=v; lastRecord.m="수동 정정"; lastRecord.types = v==="NG" ? chosenTypes.slice() : [];
-  if(v==="NG" && !lastRecord.photo && frozen) lastRecord.photo=await canvasBlob(cropCanvas(frozen.res),0.82);
   await dbPut("records", lastRecord); refreshTally();
-  var box=$("verdict"); box.className="verdict "+(v==="OK"?"ok":"ng"); $("vBig").textContent=v==="OK"?"양품":"불량"; $("vSub").textContent="수동으로 정정했습니다";
-  $("typeChips").hidden = v!=="NG"; toast(v==="OK"?"양품으로 정정했습니다":"불량으로 정정했습니다 — 유형을 고르면 바로 반영됩니다");
+  $("typeChips").hidden = v!=="NG"; $("learnBtn").hidden = !(v==="OK" && lastNgT);
+  toast(v==="OK"?(lastNgT?"양품으로 정정했습니다. 아래 버튼으로 이 모습을 기준에 추가하면 다음부터 같은 오판정이 줄어듭니다":"직전 기록을 양품으로 정정했습니다"):"직전 기록을 불량으로 정정했습니다 — 유형을 고르면 바로 반영됩니다");
+}
+/* 오판정 학습: 불량으로 잘못 잡힌 그 모습을 양품 기준 장면에 추가 */
+var lastNgT=null;
+async function learnView(){
+  var it=curItem(); if(!it||!lastNgT){ $("learnBtn").hidden=true; return; }
+  if(ENG.handCover(lastNgT)>0.25){ toast("손이 제품을 많이 가린 장면이라 기준으로 쓰기 어렵습니다"); $("learnBtn").hidden=true; return; }
+  var st=await prepToStored(lastNgT); it.refs=(it.refs||[]).concat([st]); await dbPut("items", it);
+  if(refsCache[it.id]){ delete refsCache[it.id]; }
+  lastNgT=null; $("learnBtn").hidden=true; renderStatus(); toast("양품 기준에 추가했습니다 (기준 "+it.refs.length+"장면)");
 }
 async function refreshTally(){
   var it=curItem(), today=ymd(new Date()), recs=[];
   try{ recs=await recordsBetween(today,today); }catch(e){}
-  var all=recs, mine=it?recs.filter(function(r){ return r.itemId===it.id; }):[];
+  var mine=it?recs.filter(function(r){ return r.itemId===it.id; }):[];
   var ok=mine.filter(function(r){return r.v==="OK";}).length, ng=mine.length-ok;
   $("tOk").textContent=ok; $("tNg").textContent=ng; $("tRate").textContent=mine.length?(ng/mine.length*100).toFixed(1)+"%":"–";
-  var allNg=all.filter(function(r){return r.v==="NG";}).length;
-  $("topCount").innerHTML = all.length ? '오늘 <b>'+all.length+'</b> · 불량 <b class="n">'+allNg+'</b>' : '';
+  var allNg=recs.filter(function(r){return r.v==="NG";}).length;
+  $("topCount").innerHTML = recs.length ? '오늘 <b>'+recs.length+'</b> · 불량 <b class="n">'+allNg+'</b>' : '';
 }
 function renderChips(){ $("typeChips").innerHTML=DEFECT_TYPES.map(function(t){ return '<button type="button" class="chip" data-type="'+esc(t)+'" aria-pressed="'+(chosenTypes.indexOf(t)>=0)+'">'+esc(t)+'</button>'; }).join(""); }
 
-/* ========== 사진으로 판정 (카메라 없이 확인할 때) ========== */
+/* ========== 화면 표시 ========== */
+function setState(cls, text){ var s=$("stateTag"); s.className="state "+cls; s.textContent=text; }
+function flashVerdict(){ var box=$("verdict"); box.classList.remove("flash"); void box.offsetWidth; box.classList.add("flash"); }
+function prepOverlay(){ var ov=$("overlay"), W=ov.clientWidth, H=ov.clientHeight, dpr=Math.min(2,window.devicePixelRatio||1);
+  if(ov.width!==Math.round(W*dpr)||ov.height!==Math.round(H*dpr)){ ov.width=Math.round(W*dpr); ov.height=Math.round(H*dpr); }
+  var x=ov.getContext("2d"); x.setTransform(dpr,0,0,dpr,0,0); x.clearRect(0,0,W,H); return {x:x,W:W,H:H}; }
+function clearOverlay(){ prepOverlay(); }
+function trackLabel(tr){ var o=tr.cur;
+  if(tr.done) return tr.skip ? "판정 안 함" : (tr.v==="NG"?"불량 · 기록됨":tr.partial?"부분 검사 · 기록됨":"양품 · 기록됨");
+  if(tr.isNg) return "불량";
+  if(!o) return "…";
+  if(o.status==="merged") return "붙어 있음 — 떼어 놓기";
+  var need=(curItem()||{}).minCov||0;
+  if(o.status==="ok") return (need && (tr.cov||0)<need) ? "더 돌려주세요 "+(tr.cov||0)+"/"+need+"%" : "양품 · "+(tr.cov||0)+"%";
+  if(o.status==="ng") return "확인 중";
+  if(o.status==="unknown") return "기준과 다름";
+  return "…"; }
+function trackColor(tr){ if(tr.isNg||(tr.done&&tr.v==="NG")) return C_NG; var o=tr.cur; if(tr.done) return (tr.skip||tr.partial)?C_WAIT:C_OK; var need=(curItem()||{}).minCov||0; return o&&o.status==="ok"&&!(need&&(tr.cov||0)<need)?C_OK:C_WAIT; }
+/* res 좌표(분리용 SEG 해상도·정밀 HI 해상도) → 화면 좌표 */
+function drawResult(x, res, src, W, H, list){
+  var z=srcSize(src); if(!z.w) return; var s=Math.min(W/z.w,H/z.h), dw=z.w*s, dh=z.h*s, ox=(W-dw)/2, oy=(H-dh)/2, ks=dw/res.w, kh=dw/res.hiW;
+  list.forEach(function(e){ var o=e.o, col=e.color, sg=o.seg, bx=ox+sg.x*ks, by=oy+sg.y*ks, bw=sg.w*ks, bh=sg.h*ks;
+    x.lineWidth=e.strong?3.5:2.2; x.strokeStyle=col; x.setLineDash(e.strong?[]:[8,5]); x.beginPath(); if(x.roundRect) x.roundRect(bx-4,by-4,bw+8,bh+8,10); else x.rect(bx-4,by-4,bw+8,bh+8); x.stroke(); x.setLineDash([]);
+    if(o.blobs && o.blobs.length && o.status==="ng" && !o.stale && o.T){ var T=o.T;
+      drawBrackets(x, o.blobs.map(function(b){ return {x:ox+(T.X0+b.x/T.s)*kh, y:oy+(T.Y0+b.y/T.s)*kh, w:b.w/T.s*kh, h:b.h/T.s*kh}; }), 1, e.strong?C_NG:C_WAIT); }
+    var label=e.label; x.font="700 13px "+getComputedStyle(document.body).fontFamily; var tw=x.measureText(label).width+16, ly=Math.max(2,by-30);
+    x.fillStyle="rgba(6,12,22,.82)"; x.beginPath(); if(x.roundRect) x.roundRect(bx-4,ly,tw,24,12); else x.rect(bx-4,ly,tw,24); x.fill();
+    x.fillStyle=col; x.textAlign="left"; x.textBaseline="middle"; x.fillText(label,bx+4,ly+12.5); });
+}
+function drawLive(res){ var p=prepOverlay(); var list=tracks.filter(function(tr){ return tr.frame===frameNo && tr.cur; }).map(function(tr){ return {o:tr.cur, color:trackColor(tr), strong:tr.isNg||tr.done, label:"#"+tr.id+" "+trackLabel(tr)}; });
+  drawResult(p.x, res, $("video"), p.W, p.H, list); }
+function renderLive(){
+  var act=tracks.filter(function(tr){ return tr.frame===frameNo; }), box=$("verdict");
+  if(!act.length){
+    box.className="verdict idle"; $("vBig").textContent=lastShown?"다음 제품 대기":"제품을 올려주세요";
+    $("vSub").textContent = lastShown ? "직전: "+(lastShown.v==="OK"?"양품":"불량")+" · "+hm(lastShown.t) : "여러 개를 함께 올리거나 손으로 돌려도 됩니다";
+    $("finishBtn").hidden=true; $("objChips").innerHTML=""; setState("wait","제품을 기다리는 중"); return; }
+  var ng=act.filter(function(t){ return t.isNg||(t.done&&t.v==="NG"); }).length, live=act.filter(function(t){ return !t.done; }).length;
+  if(ng){ box.className="verdict ng"; $("vBig").textContent="불량 "+ng+"개"; $("vSub").textContent="빨간 표시 제품을 확인하세요 · 화면 속 "+act.length+"개"; }
+  else { box.className="verdict ok"; $("vBig").textContent=live?"이상 없음":"양품"; $("vSub").textContent=live? act.length+"개 검사 중 · 돌리면 다른 면도 확인합니다" : "기록했습니다 · 제품을 내려주세요"; }
+  $("finishBtn").hidden=!live;
+  $("objChips").innerHTML=act.map(function(t){ var c=(t.isNg||(t.done&&t.v==="NG"))?"ng":((t.cur&&t.cur.status==="ok")||(t.done&&t.v==="OK"))?"ok":"wait"; return '<span class="obj '+c+'">#'+t.id+' '+esc(trackLabel(t))+'</span>'; }).join("");
+  setState("judge", act.length+"개 검사 중");
+}
+
+/* ========== 사진으로 판정 ========== */
 async function judgePhoto(file){
   var it=curItem(); if(!it){ toast("품목을 먼저 등록하세요"); return; }
+  var refs=await getRefs(it); if(!refs.length){ toast("이 품목은 기준 장면이 없습니다"); return; }
   var u=URL.createObjectURL(file), im=await loadImage(u); URL.revokeObjectURL(u);
-  var R=await getPrep(it), res=analyzeFrame(R, im, {sens:it.sens, minSize:it.minSize, fixed:false});
-  if(res.retake||res.ncc<0.35){ toast(res.reason||"기준과 많이 다른 사진입니다. 같은 위치·거리로 찍어주세요"); return; }
-  lastRes=res; await decide([res], it, "사진");
-  // 사진 판정은 결과 이미지를 화면에 고정 표시
-  var c=cropCanvas(res), ov=$("overlay"); $("camOff").hidden=true;
-  var W=ov.clientWidth, H=ov.clientHeight, dpr=Math.min(2,window.devicePixelRatio||1); ov.width=Math.round(W*dpr); ov.height=Math.round(H*dpr);
-  var x=ov.getContext("2d"); x.setTransform(dpr,0,0,dpr,0,0); x.fillStyle="#04080F"; x.fillRect(0,0,W,H);
-  var s=Math.min(W/c.width,H/c.height), ox=(W-c.width*s)/2, oy=(H-c.height*s)/2; x.drawImage(c,ox,oy,c.width*s,c.height*s);
-  x.save(); x.translate(ox,oy); drawBrackets(x,res.blobs,s,res.blobs.length?"#FF5A64":"#2BD49A"); x.restore();
+  var res=ENG.frame(im, refs, {sens:it.sens, minSize:it.minSize, topK:3, maxObjs:8, noBg:true});
+  var judged=res.objs.filter(function(o){ return o.status==="ok"||o.status==="ng"; });
+  if(!judged.length){ toast(res.objs.length?"기준 장면과 많이 달라 판정하지 못했습니다":"사진에서 제품을 찾지 못했습니다. 단색 바탕에서 찍어주세요"); return; }
+  pausedUntil=performance.now()+6000; $("camOff").hidden=true;
+  var p=prepOverlay(), z=srcSize(im), s=Math.min(p.W/z.w,p.H/z.h); p.x.fillStyle="#04080F"; p.x.fillRect(0,0,p.W,p.H); p.x.drawImage(im,(p.W-z.w*s)/2,(p.H-z.h*s)/2,z.w*s,z.h*s);
+  drawResult(p.x, res, im, p.W, p.H, judged.map(function(o,i){ return {o:o, color:o.status==="ng"?C_NG:C_OK, strong:true, label:"#"+(i+1)+" "+(o.status==="ng"?"불량":"양품")}; }));
+  var ng=0;
+  for(var i=0;i<judged.length;i++){ var o=judged[i], v=o.status==="ng"?"NG":"OK"; if(v==="NG") ng++;
+    if(settings.save){ var sh=snapshot(im,res,o), rec={id:rid(), t:Date.now()+i, day:ymd(new Date()), itemId:it.id, item:it.name, cat:it.cat, lot:$("lotInput").value.trim(), v:v, m:"사진", av:v, n:o.blobs.length, a:r2(o.areaPct||0), al:r2(o.ncc||0), views:1, cov:Math.round(100/refs.length), dur:0, frames:1, types:[], photo:null, bx:[]};
+      if(v==="NG"||it.keepOk){ rec.photo=await canvasBlob(sh.canvas,0.85); rec.bx=sh.bx; } await dbPut("records",rec); lastRecord=rec; } }
+  lastShown={v:ng?"NG":"OK", t:Date.now()}; beep(!ng); refreshTally();
+  var box=$("verdict"); box.className="verdict "+(ng?"ng":"ok"); flashVerdict(); $("vBig").textContent=ng?"불량 "+ng+"개":"양품"; $("vSub").textContent="사진 속 "+judged.length+"개 판정"+(settings.save?" · 기록했습니다":"");
+  $("fixBox").hidden=!settings.save; chosenTypes=[]; renderChips(); $("typeChips").hidden=!ng;
 }
 
 /* ========== 화면 전환·기록 화면 ========== */
-function go(v){ ["live","records","items"].forEach(function(k){ $("view-"+k).hidden=k!==v; });
+async function go(v){
+  if(v!=="live"){ var list=tracks.filter(function(t){ return !t.done; }); for(var i=0;i<list.length;i++) await finalize(list[i],"자동"); tracks=[]; }
+  ["live","records","items"].forEach(function(k){ $("view-"+k).hidden=k!==v; });
   document.querySelectorAll(".nav button").forEach(function(b){ if(b.dataset.go===v) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current"); });
   if(v==="records") renderRecords(); if(v==="items") renderItems(); window.scrollTo(0,0); }
 var period="today", recItem="";
@@ -645,30 +995,34 @@ async function renderRecords(){
   $("recCnt").textContent = recs.length ? recs.length+"건" : "";
   $("recList").innerHTML = recs.length ? recs.slice(0,300).map(function(r){
     var img='<span class="noimg">사진 없음</span>'; if(r.photo){ var u=URL.createObjectURL(r.photo); thumbUrls.push(u); img='<img src="'+u+'" alt="">'; }
-    return '<button type="button" class="rec" data-id="'+esc(r.id)+'">'+img+'<span class="m"><span class="a">'+esc(r.item)+(r.lot?' · '+esc(r.lot):'')+'</span><span class="b">'+esc(r.day.slice(5).replace("-","/"))+' '+hm(r.t)+' · '+esc(r.m)+(r.types&&r.types.length?' · '+esc(r.types.join(", ")):'')+'</span></span><span class="pill '+(r.v==="NG"?"ng":"ok")+'">'+(r.v==="NG"?"불량":"양품")+'</span></button>';
+    var extra = r.views!=null ? ' · '+r.views+'장면' : '';
+    return '<button type="button" class="rec" data-id="'+esc(r.id)+'">'+img+'<span class="m"><span class="a">'+esc(r.item)+(r.lot?' · '+esc(r.lot):'')+'</span><span class="b">'+esc(r.day.slice(5).replace("-","/"))+' '+hm(r.t)+' · '+esc(r.m)+extra+(r.types&&r.types.length?' · '+esc(r.types.join(", ")):'')+'</span></span><span class="pill '+(r.v==="NG"?"ng":"ok")+'">'+(r.v==="NG"?"불량":"양품")+'</span></button>';
   }).join("")+(recs.length>300?'<p class="hint">최근 300건만 보여줍니다. 전체는 엑셀로 저장해 확인하세요.</p>':'') : '<div class="empty">'+(period==="today"?"오늘 기록이 없습니다. 검사 화면에서 판정하면 자동으로 쌓입니다.":"이 기간에 기록이 없습니다")+'</div>';
 }
 var openRec=null, delPending=false;
 async function openRecord(id){
   var recs=await periodRecords(), r=recs.find(function(x){ return x.id===id; }); if(!r) return; openRec=r; delPending=false; $("recDel").textContent="기록 삭제"; $("recDel").classList.remove("confirming");
   $("recTitle").textContent=r.item+(r.lot?" · "+r.lot:"");
-  var h='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><span class="pill '+(r.v==="NG"?"ng":"ok")+'">'+(r.v==="NG"?"불량":"양품")+'</span><span class="hint">'+esc(r.day)+' '+hm(r.t)+' · '+esc(r.m)+' · 자동 비교 '+(r.av==="NG"?"의심 "+r.n+"곳":"이상 없음")+'</span></div>';
+  var meta=[esc(r.day)+' '+hm(r.t), esc(r.m), '자동 판정 '+(r.av==="NG"?"의심 "+r.n+"곳":"이상 없음")];
+  if(r.views!=null) meta.push('관찰 '+r.views+'장면'+(r.cov!=null?' ('+r.cov+'%)':'')+(r.dur?' · '+r.dur+'초':''));
+  var h='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><span class="pill '+(r.v==="NG"?"ng":"ok")+'">'+(r.v==="NG"?"불량":"양품")+'</span><span class="hint">'+meta.join(' · ')+'</span></div>';
   if(r.photo) h+='<canvas id="recCanvas" style="width:100%;border-radius:12px;background:#04080F"></canvas>';
   if(r.types&&r.types.length) h+='<p style="margin:10px 0 0"><b>불량 유형</b> '+esc(r.types.join(", "))+'</p>';
   $("recBody").innerHTML=h; $("recModal").hidden=false;
   if(r.photo){ var u=URL.createObjectURL(r.photo), im=await loadImage(u); URL.revokeObjectURL(u); var c=$("recCanvas"); c.width=im.width; c.height=im.height; var x=c.getContext("2d"); x.drawImage(im,0,0);
-    drawBrackets(x,(r.bx||[]).map(function(b){ return {x:b[0]*im.width,y:b[1]*im.height,w:b[2]*im.width,h:b[3]*im.height}; }), 1, r.v==="NG"?"#FF5A64":"#2BD49A", im.width/420); }
+    drawBrackets(x,(r.bx||[]).map(function(b){ return {x:b[0]*im.width,y:b[1]*im.height,w:b[2]*im.width,h:b[3]*im.height}; }), 1, r.v==="NG"?C_NG:C_OK, im.width/420); }
 }
+async function setRecordVerdict(v){ if(!openRec) return; openRec.v=v; openRec.m="수동 정정"; if(v==="OK") openRec.types=[]; await dbPut("records",openRec); await openRecord(openRec.id); renderRecords(); refreshTally(); toast(v==="OK"?"양품으로 바꿨습니다":"불량으로 바꿨습니다"); }
 async function exportXlsx(){
   var recs=(await periodRecords()).slice().reverse(); if(!recs.length){ toast("저장할 기록이 없습니다"); return; }
-  var rows=[["일자","시각","품목","분류","로트","판정","판정 방법","자동 비교","의심 부위","차이 면적(%)","위치 맞춤","불량 유형","사진"]];
-  recs.forEach(function(r){ rows.push([r.day,hm(r.t),r.item,r.cat||"",r.lot||"",r.v==="NG"?"불량":"양품",r.m,r.av==="NG"?"의심":"이상 없음",r.n,r.a,r.al!=null?Math.round(r.al*100)+"%":"",(r.types||[]).join(", "),r.photo?"있음":""]); });
+  var rows=[["일자","시각","품목","분류","로트","판정","판정 방법","자동 판정","의심 부위","차이 면적(%)","관찰 장면 수","관찰 범위(%)","관찰 시간(초)","불량 유형","사진"]];
+  recs.forEach(function(r){ rows.push([r.day,hm(r.t),r.item,r.cat||"",r.lot||"",r.v==="NG"?"불량":"양품",r.m,r.av==="NG"?"불량":"양품",r.n,r.a,r.views!=null?r.views:"",r.cov!=null?r.cov:"",r.dur!=null?r.dur:"",(r.types||[]).join(", "),r.photo?"있음":""]); });
   var by={}; recs.forEach(function(r){ by[r.item]=by[r.item]||{c:r.cat||"",n:0,ng:0}; by[r.item].n++; if(r.v==="NG") by[r.item].ng++; });
   var sum=[["품목","분류","검사 수","불량 수","불량률(%)"]]; Object.keys(by).forEach(function(k){ var o=by[k]; sum.push([k,o.c,o.n,o.ng,Math.round(o.ng/o.n*1000)/10]); });
   var tc={}; recs.filter(function(r){return r.v==="NG";}).forEach(function(r){ (r.types&&r.types.length?r.types:["미분류"]).forEach(function(t){ tc[t]=(tc[t]||0)+1; }); });
   var ty=[["불량 유형","건수"]]; Object.keys(tc).sort(function(a,b){ return tc[b]-tc[a]; }).forEach(function(k){ ty.push([k,tc[k]]); });
   XLSX_AUTHOR = lsGet("ag_live_author","");
-  var r=periodRange(), data=buildXlsx([{name:"검사 기록",rows:rows,widths:[11,9,30,13,13,7,10,10,9,11,9,24,6]},{name:"품목별 요약",rows:sum,widths:[30,13,9,9,10]},{name:"불량 유형별",rows:ty,widths:[16,8]}]);
+  var r=periodRange(), data=buildXlsx([{name:"검사 기록",rows:rows,widths:[11,9,28,13,13,7,10,9,9,11,11,11,11,22,6]},{name:"품목별 요약",rows:sum,widths:[28,13,9,9,10]},{name:"불량 유형별",rows:ty,widths:[16,8]}]);
   downloadBlob(new Blob([data],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}), "inspection_"+r[0]+(r[0]!==r[1]?"_"+r[1]:"")+".xlsx");
   toast(recs.length+"건을 엑셀로 저장했습니다");
 }
@@ -677,69 +1031,141 @@ async function exportXlsx(){
 async function loadItems(){ items=(await dbAll("items")).sort(function(a,b){ return a.createdAt-b.createdAt; }); renderItemSel(); }
 function renderItemSel(){
   var sel=$("itemSel"), keep=sel.value||lsGet("ag_live_item","");
-  if(!items.length){ sel.innerHTML='<option value="">먼저 품목을 등록하세요</option>'; sel.disabled=true; $("judgeBtn").disabled=true; return; }
-  sel.disabled=false; $("judgeBtn").disabled=false;
+  if(!items.length){ sel.innerHTML='<option value="">먼저 품목을 등록하세요</option>'; sel.disabled=true; renderStatus(); return; }
+  sel.disabled=false;
   sel.innerHTML=items.map(function(i){ return '<option value="'+esc(i.id)+'">'+esc(i.name)+'</option>'; }).join("");
-  sel.value = items.some(function(i){ return i.id===keep; }) ? keep : items[0].id; refreshTally();
+  sel.value = items.some(function(i){ return i.id===keep; }) ? keep : items[0].id; refreshTally(); renderStatus();
 }
+function refCountOf(i){ return i.refs ? i.refs.length : (i.ref?1:0); }
+function firstRefBlob(i){ return i.refs&&i.refs.length ? i.refs[0].jpg : i.ref; }
 function renderItems(){
   $("itemCnt").textContent=items.length?items.length+"개":"";
-  $("itemList").innerHTML = items.length ? items.map(function(i){ return '<div class="item"><canvas data-thumb="'+esc(i.id)+'" width="152" height="152"></canvas><div style="min-width:0"><div class="nm">'+esc(i.name)+'</div><div class="meta">'+esc(i.cat)+' · 감도 '+i.sens+' · 최소 크기 '+i.minSize+'</div><div class="acts"><button type="button" class="btn small" data-edit="'+esc(i.id)+'">수정</button><button type="button" class="btn small ghost" data-use="'+esc(i.id)+'">이 품목 검사</button></div></div></div>'; }).join("") : '<div class="empty">등록된 품목이 없습니다. 거치대에 양품을 올리고 아래 버튼으로 등록하세요.</div>';
-  items.forEach(function(i){ var u=URL.createObjectURL(i.ref); loadImage(u).then(function(im){ URL.revokeObjectURL(u); var c=document.querySelector('[data-thumb="'+i.id+'"]'); if(!c) return; var x=c.getContext("2d"), s=Math.max(c.width/im.width,c.height/im.height), w=im.width*s, h=im.height*s, ox=(c.width-w)/2, oy=(c.height-h)/2; x.drawImage(im,ox,oy,w,h); x.strokeStyle="#19C39C"; x.lineWidth=3; x.strokeRect(ox+i.roi.x*w,oy+i.roi.y*h,i.roi.w*w,i.roi.h*h); }); });
-  storageInfo();
+  $("itemList").innerHTML = items.length ? items.map(function(i){ return '<div class="item"><canvas data-thumb="'+esc(i.id)+'" width="152" height="152"></canvas><div style="min-width:0"><div class="nm">'+esc(i.name)+'</div><div class="meta">'+esc(i.cat)+' · 기준 '+refCountOf(i)+'장면 · 감도 '+i.sens+' · 최소 크기 '+i.minSize+(i.minCov?' · 관찰 '+i.minCov+'%↑':'')+'</div><div class="acts"><button type="button" class="btn small" data-edit="'+esc(i.id)+'">수정</button><button type="button" class="btn small ghost" data-use="'+esc(i.id)+'">이 품목 검사</button></div></div></div>'; }).join("") : '<div class="empty">등록된 품목이 없습니다. 아래 버튼으로 등록하고 양품을 돌리며 녹화하세요.</div>';
+  items.forEach(function(i){ var b=firstRefBlob(i); if(!b) return; var u=URL.createObjectURL(b); loadImage(u).then(function(im){ URL.revokeObjectURL(u); var c=document.querySelector('[data-thumb="'+i.id+'"]'); if(!c) return; var x=c.getContext("2d"), s=Math.min(c.width/im.width,c.height/im.height), w=im.width*s, h=im.height*s; x.fillStyle="#04080F"; x.fillRect(0,0,c.width,c.height); x.drawImage(im,(c.width-w)/2,(c.height-h)/2,w,h); }); });
+  storageInfo(); renderStation();
 }
 async function storageInfo(){ try{ if(navigator.storage&&navigator.storage.estimate){ var e=await navigator.storage.estimate(); $("storageInfo").textContent="이 폰에서 사용 중인 저장 공간: "+(e.usage/1048576).toFixed(1)+"MB"; } }catch(e){} }
-var editing=null, draftBlob=null, draftImg=null, draftRoi=null, itemDelPending=false;
-function openItemForm(it){
-  editing=it||null; draftBlob=it?it.ref:null; draftRoi=it?Object.assign({},it.roi):null; draftImg=null; itemDelPending=false;
+
+/* 품목 편집: 기준 장면 모음 (draft: {st:저장형, desc, aspect, thumb}) */
+var editing=null, draft=[], recOn=false, itemDelPending=false, refBusy=false;
+var DIV=0.007, MAX_REFS=220;
+function thumbOf(canvas){ var c=document.createElement("canvas"), s=Math.min(72/canvas.width,72/canvas.height); c.width=72; c.height=72; var x=c.getContext("2d"); x.fillStyle="#04080F"; x.fillRect(0,0,72,72); x.drawImage(canvas,(72-canvas.width*s)/2,(72-canvas.height*s)/2,canvas.width*s,canvas.height*s); return c; }
+async function openItemForm(it){
+  editing=it||null; draft=[]; itemDelPending=false; recOn=false;
   $("itemTitle").textContent=it?"품목 수정":"품목 등록"; $("fName").value=it?it.name:""; $("fCat").value=it?it.cat:"캡·오버캡";
-  $("fSens").value=it?it.sens:5; $("fSensV").textContent=$("fSens").value; $("fMin").value=it?it.minSize:8; $("fMinV").textContent=$("fMin").value; $("fKeepOk").checked=!!(it&&it.keepOk);
+  $("fSens").value=it?it.sens:5; $("fSensV").textContent=$("fSens").value; $("fMin").value=it?it.minSize:8; $("fMinV").textContent=$("fMin").value; $("fKeepOk").checked=!!(it&&it.keepOk); $("fMinCov").value=String(it&&it.minCov||0);
   $("itemDel").hidden=!it; $("itemExport").hidden=!it; $("itemDel").textContent="삭제"; $("itemDel").classList.remove("confirming");
-  $("capBox").hidden=true; $("capShot").hidden=true; $("roiBox").hidden=true;
-  if(it){ var u=URL.createObjectURL(it.ref); loadImage(u).then(function(im){ URL.revokeObjectURL(u); draftImg=im; drawRoi(); $("roiBox").hidden=false; }); }
-  $("itemModal").hidden=false;
+  $("capBox").hidden=true; $("refProg").hidden=true; renderRefGrid(); $("itemModal").hidden=false;
+  if(it){ var refs=await getRefs(it), st=it.refs||[];
+    for(var i=0;i<st.length;i++){ var d={st:st[i], desc:refs[i]?refs[i].desc:null, aspect:refs[i]?refs[i].aspect:1, P:refs[i]||null, thumb:null};
+      try{ var u=URL.createObjectURL(st[i].jpg), im=await loadImage(u); URL.revokeObjectURL(u); d.thumb=thumbOf(im); }catch(e){}
+      draft.push(d); }
+    renderRefGrid(); }
 }
-function drawRoi(){ if(!draftImg) return; var c=$("roiCanvas"), im=draftImg, k=Math.min(1,900/Math.max(im.width,im.height)); c.width=Math.round(im.width*k); c.height=Math.round(im.height*k);
-  var x=c.getContext("2d"); x.drawImage(im,0,0,c.width,c.height); if(!draftRoi) draftRoi={x:0.15,y:0.15,w:0.7,h:0.7};
-  var r=draftRoi, rx=r.x*c.width, ry=r.y*c.height, rw=r.w*c.width, rh=r.h*c.height;
-  x.fillStyle="rgba(4,8,15,.6)"; x.fillRect(0,0,c.width,ry); x.fillRect(0,ry+rh,c.width,c.height-ry-rh); x.fillRect(0,ry,rx,rh); x.fillRect(rx+rw,ry,c.width-rx-rw,rh);
-  x.strokeStyle="#19C39C"; x.lineWidth=Math.max(2,c.width/220); x.strokeRect(rx,ry,rw,rh); }
-(function(){ var c=$("roiCanvas"), st=null;
-  function pos(e){ var b=c.getBoundingClientRect(); return [Math.min(1,Math.max(0,(e.clientX-b.left)/b.width)), Math.min(1,Math.max(0,(e.clientY-b.top)/b.height))]; }
-  c.addEventListener("pointerdown",function(e){ st=pos(e); c.setPointerCapture(e.pointerId); e.preventDefault(); });
-  c.addEventListener("pointermove",function(e){ if(!st) return; var p=pos(e); draftRoi={x:Math.min(st[0],p[0]),y:Math.min(st[1],p[1]),w:Math.abs(p[0]-st[0]),h:Math.abs(p[1]-st[1])}; drawRoi(); });
-  c.addEventListener("pointerup",function(){ st=null; if(draftRoi&&(draftRoi.w<0.08||draftRoi.h<0.08)){ draftRoi={x:0.15,y:0.15,w:0.7,h:0.7}; drawRoi(); toast("검사 영역이 너무 작습니다. 제품 전체를 덮도록 끌어주세요"); } }); })();
-async function setDraftFromSource(src){
-  var z=srcSize(src), k=Math.min(1,1600/Math.max(z.w,z.h)), c=document.createElement("canvas"); c.width=Math.round(z.w*k); c.height=Math.round(z.h*k); c.getContext("2d").drawImage(src,0,0,c.width,c.height);
-  draftBlob=await canvasBlob(c,0.92); var u=URL.createObjectURL(draftBlob); draftImg=await loadImage(u); URL.revokeObjectURL(u);
-  draftRoi={x:0.15,y:0.15,w:0.7,h:0.7}; drawRoi(); $("roiBox").hidden=false; $("capBox").hidden=true; $("capShot").hidden=true;
-  $("roiHint").textContent="제품 부분을 손가락으로 끌어 초록 상자로 감싸세요. 상자 밖은 검사하지 않습니다.";
+function renderRefGrid(){
+  $("refCount").textContent=draft.length+"장";
+  var g=$("refGrid"); g.innerHTML=draft.map(function(d,i){ return '<button type="button" data-ref="'+i+'" aria-label="장면 '+(i+1)+' 지우기"><canvas width="72" height="72"></canvas></button>'; }).join("");
+  var cs=g.querySelectorAll("canvas"); draft.forEach(function(d,i){ if(d.thumb) cs[i].getContext("2d").drawImage(d.thumb,0,0); });
+  $("refClear").hidden=!draft.length;
+}
+async function addCandidate(T, div){
+  if(!T) return "none";
+  if(T.area<400) return "small";
+  if(ENG.handCover(T)>0.25) return "hand";
+  var md=Infinity; for(var i=0;i<draft.length;i++){ if(!draft[i].desc) continue; var x=ENG.descDist(T,draft[i]); if(x<md) md=x; }
+  var lim=(div==null?DIV:div); if(md<lim*0.4) return "dup";
+  /* 전체 모습이 충분히 다르면 추가. 비슷해 보여도 지금까지 모은 기준 장면만으로 '양품'이 설명되지 않으면(글자·무늬가 막 보이기 시작하는 각도 등) 추가
+     → 글자·무늬가 보이기 시작하는 각도처럼 모습이 빨리 바뀌는 구간은 촘촘히, 민무늬 구간은 듬성듬성 저장됨 */
+  var Ps=draft.filter(function(d){ return d.P; }).map(function(d){ return d.P; });
+  if(Ps.length && md<lim){ var j=ENG.judge(T, Ps, {sens:Math.min(10,(+$("fSens").value||5)+3), minSize:Math.max(3,(+$("fMin").value||8)>>1), topK:1, maxK:1}); /* 가장 가까운 장면 하나로만, 검사보다 엄격하게 봐서 여유 있게 촘촘히 저장 */ if(j.status==="ok") return "dup"; }
+  if(draft.length>=MAX_REFS) return "full";
+  var st=await prepToStored(T), th=thumbOf(T.canvas); draft.push({st:st, desc:T.desc, aspect:T.aspect, P:ENG.slim(T), thumb:th}); return "add";
+}
+var REC_MSG={none:"제품이 안 보입니다", small:"제품이 너무 작습니다 — 더 가까이", hand:"손이 제품을 많이 가립니다", dup:"같은 모습 — 천천히 돌려주세요", full:"최대 장수에 도달했습니다"};
+async function toggleRec(){
+  if(recOn){ recOn=false; return; }
+  if(refBusy) return;
+  if(!stream){ await startCamera(); if(!stream){ toast("카메라를 켜지 못했습니다. 사진이나 동영상 파일로 등록하세요"); return; } }
+  $("capVideo").srcObject=stream; $("capBox").hidden=false; try{ await $("capVideo").play(); }catch(e){}
+  recOn=true; refBusy=true; $("refRecTxt").textContent="녹화 멈추기"; $("refRecBtn").classList.add("on");
+  var t0=Date.now(), added=0, code="", hist=[];
+  await sleep(300);
+  while(recOn && !$("itemModal").hidden){
+    var T=null; try{ T=ENG.largestObject($("capVideo")); }catch(e){}
+    code=await addCandidate(T); if(code==="add"){ added++; if(added%3===0) renderRefGrid(); }
+    hist.push(code==="add"?1:0); if(hist.length>12) hist.shift();
+    /* 연속으로 거의 매번 새 장면이면 돌리는 속도가 빠른 것 → 사이 각도가 빠져 오판정 원인이 됨 */
+    var fast = hist.length>=12 && hist.reduce(function(a,b){ return a+b; },0)>=11;
+    $("recLiveTxt").textContent = code==="add" ? (fast?"조금 더 천천히 돌려주세요 · ":"녹화 중 · ")+"새 장면 "+added+"장" : REC_MSG[code]+" · 새 장면 "+added+"장";
+    if(code==="full" || Date.now()-t0>180000) break;
+    await sleep(15);
+  }
+  recOn=false; refBusy=false; renderRefGrid(); $("refRecTxt").textContent="돌리며 녹화"; $("refRecBtn").classList.remove("on"); $("capBox").hidden=true;
+  toast("새 장면 "+added+"장을 추가했습니다 (모두 "+draft.length+"장). 저장을 눌러야 반영됩니다");
+}
+function setProg(p){ $("refProg").hidden=p==null; $("refProg").firstElementChild.style.width=Math.round((p||0)*100)+"%"; }
+async function addFromPhotos(files){
+  if(refBusy) return; refBusy=true; var added=0, miss=0;
+  for(var i=0;i<files.length;i++){ setProg(i/files.length);
+    try{ var u=URL.createObjectURL(files[i]), im=await loadImage(u); URL.revokeObjectURL(u); var c=await addCandidate(ENG.largestObject(im,true), DIV/4); if(c==="add") added++; else if(c!=="dup") miss++; }catch(e){ miss++; } }
+  setProg(null); refBusy=false; renderRefGrid();
+  toast("사진 "+files.length+"장 중 "+added+"장을 기준 장면으로 추가했습니다"+(miss?" · "+miss+"장은 제품을 찾지 못함":""));
+}
+async function addFromVideo(file){
+  if(refBusy) return; refBusy=true; var vid=document.createElement("video"), url=URL.createObjectURL(file), added=0;
+  vid.muted=true; vid.playsInline=true; vid.preload="auto"; vid.src=url;
+  try{
+    await new Promise(function(res,rej){ vid.onloadeddata=res; vid.onerror=function(){ rej(new Error("video")); }; setTimeout(function(){ rej(new Error("timeout")); },15000); });
+    var dur=vid.duration; if(!isFinite(dur)||dur<=0) throw new Error("duration");
+    var step=Math.max(0.1, dur/400);
+    for(var t=0.05;t<dur;t+=step){ setProg(t/dur);
+      vid.currentTime=t; await new Promise(function(r){ var done=false; vid.onseeked=function(){ done=true; r(); }; setTimeout(function(){ if(!done) r(); },2000); });
+      var c=await addCandidate(ENG.largestObject(vid,true)); if(c==="add"){ added++; if(added%5===0) renderRefGrid(); } if(c==="full") break; }
+    toast("동영상에서 서로 다른 장면 "+added+"장을 추가했습니다 (모두 "+draft.length+"장)");
+  }catch(e){ toast("동영상을 읽지 못했습니다. 휴대폰으로 찍은 mp4 파일인지 확인해주세요"); }
+  URL.revokeObjectURL(url); setProg(null); refBusy=false; renderRefGrid();
 }
 async function saveItem(){
-  var name=$("fName").value.trim(); if(!name){ toast("품목명을 입력하세요"); return; } if(!draftBlob){ toast("양품 기준을 먼저 찍어주세요"); return; }
+  var name=$("fName").value.trim(); if(!name){ toast("품목명을 입력하세요"); return; }
+  if(!draft.length){ toast("양품 기준 장면을 먼저 등록하세요 (돌리며 녹화 / 사진 / 동영상)"); return; }
+  if(recOn||refBusy){ toast("등록이 끝난 뒤 저장하세요"); return; }
   var it=editing?Object.assign({},editing):{id:rid(), createdAt:Date.now()};
-  it.name=name; it.cat=$("fCat").value; it.sens=+$("fSens").value; it.minSize=+$("fMin").value; it.keepOk=$("fKeepOk").checked; it.ref=draftBlob; it.roi=draftRoi||{x:0.15,y:0.15,w:0.7,h:0.7};
-  await dbPut("items", it); delete prepCache[it.id]; await loadItems(); $("itemSel").value=it.id; lsSet("ag_live_item",it.id); refreshTally(); renderItems(); $("itemModal").hidden=true; toast("품목을 저장했습니다");
+  it.name=name; it.cat=$("fCat").value; it.sens=+$("fSens").value; it.minSize=+$("fMin").value; it.keepOk=$("fKeepOk").checked; it.minCov=+$("fMinCov").value; it.refs=draft.map(function(d){ return d.st; }); it.v=2; delete it.ref; delete it.roi;
+  await dbPut("items", it); delete refsCache[it.id]; await loadItems(); $("itemSel").value=it.id; lsSet("ag_live_item",it.id); refreshTally(); renderItems(); $("itemModal").hidden=true; tracks=[];
+  toast("품목을 저장했습니다 (기준 "+it.refs.length+"장면)");
 }
-async function exportItem(it){ var obj={kind:"inspect-live-item", v:1, name:it.name, cat:it.cat, sens:it.sens, minSize:it.minSize, keepOk:!!it.keepOk, roi:it.roi, ref:await blobToDataURL(it.ref)};
-  downloadBlob(new Blob([JSON.stringify(obj)],{type:"application/json"}), "item_"+it.id+".json"); }
+/* 파일 주고받기: 기준 장면은 JPEG(dataURL) + 실루엣 비트(base64) */
+async function itemToJSON(it){
+  var o={id:it.id, createdAt:it.createdAt, name:it.name, cat:it.cat, sens:it.sens, minSize:it.minSize, keepOk:!!it.keepOk, minCov:it.minCov||0, v:2, refs:[]};
+  if(it.refs){ for(var i=0;i<it.refs.length;i++){ var r=it.refs[i]; o.refs.push({w:r.w, h:r.h, jpg:await blobToDataURL(r.jpg), m:b64(r.m), e:r.e?b64(r.e):null, sa:r.sa||0}); } }
+  else if(it.ref){ o.v=1; o.ref=await blobToDataURL(it.ref); o.roi=it.roi; delete o.refs; }
+  return o; }
+async function itemFromJSON(o){
+  var it={id:o.id||rid(), createdAt:o.createdAt||Date.now(), name:o.name||"이름 없음", cat:o.cat||"기타", sens:o.sens||5, minSize:o.minSize||8, keepOk:!!o.keepOk, minCov:o.minCov||0};
+  if(Array.isArray(o.refs)){ it.v=2; it.refs=[]; for(var i=0;i<o.refs.length;i++){ var r=o.refs[i]; it.refs.push({w:r.w, h:r.h, jpg:await dataURLToBlob(r.jpg), m:unb64(r.m), e:r.e?unb64(r.e):null, sa:r.sa||0}); } }
+  else if(o.ref){ it.ref=await dataURLToBlob(o.ref); it.roi=o.roi||{x:0.15,y:0.15,w:0.7,h:0.7}; }
+  return it; }
+async function exportItem(it){ var o=await itemToJSON(it); o.kind="inspect-live-item"; downloadBlob(new Blob([JSON.stringify(o)],{type:"application/json"}), "item_"+it.id+".json"); }
 async function importItems(file){
-  try{ var obj=JSON.parse(await file.text()), list = (obj.ref && obj.roi) ? [obj] : (obj.items||[]);
-    for(var i=0;i<list.length;i++){ var o=list[i]; await dbPut("items",{id:o.id||rid(), createdAt:o.createdAt||Date.now(), name:o.name, cat:o.cat, sens:o.sens, minSize:o.minSize, keepOk:!!o.keepOk, roi:o.roi, ref:await dataURLToBlob(o.ref)}); }
-    prepCache={}; await loadItems(); renderItems(); toast(list.length+"개 품목을 가져왔습니다"); }
+  try{ var obj=JSON.parse(await file.text()), list=(obj.refs||obj.ref) ? [obj] : (obj.items||[]); if(!list.length) throw 0;
+    for(var i=0;i<list.length;i++) await dbPut("items", await itemFromJSON(list[i]));
+    refsCache={}; await loadItems(); renderItems(); toast(list.length+"개 품목을 가져왔습니다"); }
   catch(e){ toast("파일을 읽지 못했습니다. 이 프로그램에서 내보낸 파일인지 확인해주세요"); }
 }
 async function backupAll(){
-  var its=await dbAll("items"), recs=await dbAll("records"), out={kind:"inspect-live-backup", v:1, at:new Date().toISOString(), items:[], records:[]};
-  for(var i=0;i<its.length;i++){ var a=Object.assign({},its[i]); a.ref=await blobToDataURL(a.ref); out.items.push(a); }
+  var its=await dbAll("items"), recs=await dbAll("records"), out={kind:"inspect-live-backup", v:2, at:new Date().toISOString(), station:stationCfg, bg:null, items:[], records:[]};
+  try{ out.bg=localStorage.getItem("ag_live_bg"); }catch(e){}
+  for(var i=0;i<its.length;i++) out.items.push(await itemToJSON(its[i]));
   for(var j=0;j<recs.length;j++){ var r=Object.assign({},recs[j]); if(r.photo) r.photo=await blobToDataURL(r.photo); out.records.push(r); }
   downloadBlob(new Blob([JSON.stringify(out)],{type:"application/json"}), "backup_"+ymd(new Date())+".json"); toast("품목 "+its.length+"개, 기록 "+recs.length+"건을 백업했습니다");
 }
 async function restoreAll(file){
   try{ var o=JSON.parse(await file.text()); if(!Array.isArray(o.items)||!Array.isArray(o.records)) throw 0;
-    for(var i=0;i<o.items.length;i++){ var a=o.items[i]; a.ref=await dataURLToBlob(a.ref); await dbPut("items",a); }
+    for(var i=0;i<o.items.length;i++) await dbPut("items", await itemFromJSON(o.items[i]));
     for(var j=0;j<o.records.length;j++){ var r=o.records[j]; if(r.photo) r.photo=await dataURLToBlob(r.photo); await dbPut("records",r); }
-    prepCache={}; await loadItems(); renderItems(); refreshTally(); toast("백업을 불러왔습니다 (품목 "+o.items.length+"개, 기록 "+o.records.length+"건)"); }
+    if(o.station){ stationCfg=Object.assign({skin:true,gloves:[],T:70,bgAt:0,lock:true,adapt:true},o.station); }
+    if(o.bg){ try{ localStorage.setItem("ag_live_bg",o.bg); }catch(e){} await loadBg(); } else if(o.station){ stationCfg.bgAt=0; }
+    saveStation(); refsCache={}; await loadItems(); renderItems(); refreshTally(); toast("백업을 불러왔습니다 (품목 "+o.items.length+"개, 기록 "+o.records.length+"건)"); }
   catch(e){ toast("백업 파일을 읽지 못했습니다"); }
 }
 
@@ -747,7 +1173,7 @@ async function restoreAll(file){
   /* ---------- 엑셀(.xlsx) 파일 직접 생성 (외부 라이브러리 없이) ----------
      xlsx는 XML 파일 몇 개를 zip으로 묶은 것이라, 무압축 zip + 최소 XML로 직접 만든다.
      머리글: 진한 남색(#003366) 바탕 흰색 굵은 글씨, 첫 행 고정, 자동 필터, 열 너비 지정.
-     문서 속성의 만든이/마지막 수정한 사람은 사용자가 정한 이름, 생성 도구 흔적은 남기지 않음. */
+     문서 속성의 만든이/마지막 수정한 사람은 설정에서 입력한 이름, 생성 도구 흔적은 남기지 않음. */
   var XLSX_AUTHOR="";
   function xmlEsc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,""); }
   function colName(i){ var s=""; i++; while(i>0){ var m=(i-1)%26; s=String.fromCharCode(65+m)+s; i=Math.floor((i-1)/26); } return s; }
@@ -830,15 +1256,15 @@ async function restoreAll(file){
 document.querySelectorAll(".nav button").forEach(function(b){ b.addEventListener("click",function(){ go(b.dataset.go); }); });
 $("camBtn").addEventListener("click", startCamera);
 $("torchBtn").addEventListener("click", toggleTorch);
-$("ghostBtn").addEventListener("click", function(){ settings.ghost=!settings.ghost; lsSet("ag_live_settings",settings); $("ghostBtn").classList.toggle("on",settings.ghost); });
-$("judgeBtn").addEventListener("click", function(){ var it=curItem(); if(!it) return; if(!running){ $("photoInput").click(); return; }
-  if(!present(lastRes)){ toast("검사 영역에서 제품을 찾지 못했습니다"); return; } decide([lastRes], it, "수동"); });
+$("bgBtn").addEventListener("click", captureBg);
+$("gloveBtn").addEventListener("click", togglePick);
+$("overlay").addEventListener("click", function(e){ if(picking) pickAt(e); });
+$("finishBtn").addEventListener("click", finishAll);
 $("photoBtn").addEventListener("click", function(){ $("photoInput").click(); });
 $("photoInput").addEventListener("change", function(e){ var f=e.target.files&&e.target.files[0]; e.target.value=""; if(f) judgePhoto(f); });
-["swAuto","swSave","swSound","swFixed"].forEach(function(id){ var key={swAuto:"auto",swSave:"save",swSound:"sound",swFixed:"fixed"}[id]; $(id).checked=!!settings[key];
-  $(id).addEventListener("change",function(){ settings[key]=$(id).checked; lsSet("ag_live_settings",settings); }); });
-$("ghostBtn").classList.toggle("on",!!settings.ghost);
-$("itemSel").addEventListener("change", function(){ lsSet("ag_live_item",$("itemSel").value); phase="armed"; stable=0; votes=[]; refreshTally(); });
+[["swSave","save"],["swSound","sound"],["swCareful","careful"]].forEach(function(a){ $(a[0]).checked=!!settings[a[1]];
+  $(a[0]).addEventListener("change",function(){ settings[a[1]]=$(a[0]).checked; lsSet("ag_live_settings2",settings); }); });
+$("itemSel").addEventListener("change", function(){ lsSet("ag_live_item",$("itemSel").value); tracks=[]; refreshTally(); renderStatus(); });
 $("fixOk").addEventListener("click", function(){ fixLast("OK"); });
 $("fixNg").addEventListener("click", function(){ fixLast("NG"); });
 $("typeChips").addEventListener("click", async function(e){ var c=e.target.closest(".chip"); if(!c) return; var t=c.dataset.type, i=chosenTypes.indexOf(t); if(i>=0) chosenTypes.splice(i,1); else chosenTypes.push(t); c.setAttribute("aria-pressed",i<0?"true":"false");
@@ -847,6 +1273,8 @@ $("periodChips").addEventListener("click", function(e){ var c=e.target.closest("
 $("recItemSel").addEventListener("change", function(){ recItem=$("recItemSel").value; renderRecords(); });
 $("recList").addEventListener("click", function(e){ var r=e.target.closest(".rec"); if(r) openRecord(r.dataset.id); });
 $("recClose").addEventListener("click", function(){ $("recModal").hidden=true; });
+$("recToOk").addEventListener("click", function(){ setRecordVerdict("OK"); });
+$("recToNg").addEventListener("click", function(){ setRecordVerdict("NG"); });
 $("recDel").addEventListener("click", async function(){ if(!openRec) return; if(!delPending){ delPending=true; $("recDel").textContent="정말 삭제? 다시 누르기"; $("recDel").classList.add("confirming"); setTimeout(function(){ delPending=false; $("recDel").textContent="기록 삭제"; $("recDel").classList.remove("confirming"); },4000); return; }
   await dbDel("records",openRec.id); $("recModal").hidden=true; renderRecords(); refreshTally(); toast("기록을 삭제했습니다"); });
 $("exportBtn").addEventListener("click", exportXlsx);
@@ -854,32 +1282,46 @@ $("newItemBtn").addEventListener("click", function(){ openItemForm(null); });
 $("importItemBtn").addEventListener("click", function(){ $("importItemInput").click(); });
 $("importItemInput").addEventListener("change", function(e){ var f=e.target.files&&e.target.files[0]; e.target.value=""; if(f) importItems(f); });
 $("itemList").addEventListener("click", function(e){ var a=e.target.closest("[data-edit]"); if(a){ openItemForm(items.find(function(i){ return i.id===a.dataset.edit; })); return; }
-  var u=e.target.closest("[data-use]"); if(u){ $("itemSel").value=u.dataset.use; lsSet("ag_live_item",u.dataset.use); refreshTally(); go("live"); } });
-$("itemClose").addEventListener("click", function(){ $("itemModal").hidden=true; });
-$("refCamBtn").addEventListener("click", async function(){ if(!stream){ await startCamera(); if(!stream) { toast("카메라를 켜지 못했습니다. '사진 파일에서'를 이용하세요"); return; } } $("capVideo").srcObject=stream; $("capBox").hidden=false; $("capShot").hidden=false; $("roiBox").hidden=true; try{ await $("capVideo").play(); }catch(e){} });
-$("capShot").addEventListener("click", function(){ setDraftFromSource($("capVideo")); });
-$("refFileBtn").addEventListener("click", function(){ $("refFileInput").click(); });
-$("refFileInput").addEventListener("change", async function(e){ var f=e.target.files&&e.target.files[0]; e.target.value=""; if(!f) return; var u=URL.createObjectURL(f), im=await loadImage(u); await setDraftFromSource(im); URL.revokeObjectURL(u); });
+  var u=e.target.closest("[data-use]"); if(u){ $("itemSel").value=u.dataset.use; lsSet("ag_live_item",u.dataset.use); refreshTally(); tracks=[]; go("live"); } });
+$("itemClose").addEventListener("click", function(){ recOn=false; $("itemModal").hidden=true; });
+$("refRecBtn").addEventListener("click", toggleRec);
+$("refPhotosBtn").addEventListener("click", function(){ if(!refBusy) $("refPhotosInput").click(); });
+$("refPhotosInput").addEventListener("change", function(e){ var f=Array.prototype.slice.call(e.target.files||[]); e.target.value=""; if(f.length) addFromPhotos(f); });
+$("refVideoBtn").addEventListener("click", function(){ if(!refBusy) $("refVideoInput").click(); });
+$("refVideoInput").addEventListener("change", function(e){ var f=e.target.files&&e.target.files[0]; e.target.value=""; if(f) addFromVideo(f); });
+$("refGrid").addEventListener("click", function(e){ var b=e.target.closest("[data-ref]"); if(!b||refBusy) return; draft.splice(+b.dataset.ref,1); renderRefGrid(); });
+var refClearPending=false;
+$("refClear").addEventListener("click", function(){ if(refBusy) return; if(!refClearPending){ refClearPending=true; $("refClear").textContent="정말 모두 지우기?"; $("refClear").classList.add("confirming"); setTimeout(function(){ refClearPending=false; $("refClear").textContent="모두 지우기"; $("refClear").classList.remove("confirming"); },4000); return; }
+  refClearPending=false; $("refClear").textContent="모두 지우기"; $("refClear").classList.remove("confirming"); draft=[]; renderRefGrid(); });
 $("fSens").addEventListener("input", function(){ $("fSensV").textContent=this.value; });
 $("fMin").addEventListener("input", function(){ $("fMinV").textContent=this.value; });
 $("itemSave").addEventListener("click", saveItem);
 $("itemExport").addEventListener("click", function(){ if(editing) exportItem(editing); });
 $("itemDel").addEventListener("click", async function(){ if(!editing) return; if(!itemDelPending){ itemDelPending=true; $("itemDel").textContent="정말 삭제? 다시 누르기"; $("itemDel").classList.add("confirming"); setTimeout(function(){ itemDelPending=false; $("itemDel").textContent="삭제"; $("itemDel").classList.remove("confirming"); },4000); return; }
-  await dbDel("items",editing.id); delete prepCache[editing.id]; await loadItems(); renderItems(); $("itemModal").hidden=true; toast("품목을 삭제했습니다 (지난 기록은 남습니다)"); });
+  await dbDel("items",editing.id); delete refsCache[editing.id]; await loadItems(); renderItems(); $("itemModal").hidden=true; toast("품목을 삭제했습니다 (지난 기록은 남습니다)"); });
+$("bgClear").addEventListener("click", clearBg);
+$("gloveList").addEventListener("click", function(e){ var b=e.target.closest("[data-glove]"); if(!b) return; stationCfg.gloves.splice(+b.dataset.glove,1); saveStation(); });
+$("swSkin").addEventListener("change", function(){ stationCfg.skin=$("swSkin").checked; saveStation(); });
+$("swLock").addEventListener("change", async function(){ stationCfg.lock=$("swLock").checked; saveStation(); if(!stationCfg.lock && track){ await lockCamera(false); toast("카메라 자동 조절로 되돌렸습니다"); } });
+$("swAdapt").addEventListener("change", function(){ stationCfg.adapt=$("swAdapt").checked; saveStation(); });
+$("learnBtn").addEventListener("click", learnView);
+$("segT").addEventListener("input", function(){ $("segTV").textContent=this.value; });
+$("segT").addEventListener("change", function(){ stationCfg.T=+this.value; saveStation(); });
 $("backupBtn").addEventListener("click", backupAll);
 $("authorInput").value=lsGet("ag_live_author","");
 $("authorInput").addEventListener("change", function(){ lsSet("ag_live_author", $("authorInput").value.trim()); toast("엑셀 작성자 이름을 저장했습니다"); });
 $("restoreBtn").addEventListener("click", function(){ $("restoreInput").click(); });
 $("restoreInput").addEventListener("change", function(e){ var f=e.target.files&&e.target.files[0]; e.target.value=""; if(f) restoreAll(f); });
-["itemModal","recModal"].forEach(function(id){ $(id).addEventListener("click",function(e){ if(e.target.id===id) $(id).hidden=true; }); });
+["itemModal","recModal"].forEach(function(id){ $(id).addEventListener("click",function(e){ if(e.target.id===id){ if(id==="itemModal") recOn=false; $(id).hidden=true; } }); });
 
 /* ========== 시작 ========== */
 (async function init(){
+  applyStation(); await loadBg(); renderStation();
   try{ idb=await openDB(); }catch(e){ toast("이 브라우저에서는 기록을 저장할 수 없습니다"); return; }
   try{ if(navigator.storage&&navigator.storage.persist) navigator.storage.persist(); }catch(e){}
   await loadItems();
-  if(!items.length){ $("vSub").textContent="'품목·백업' 탭에서 거치대에 올린 양품을 기준으로 등록하세요"; }
-  window.__ag={analyzeFrame:analyzeFrame, prepareRef:prepareRef, state:function(){ return {phase:phase, stable:stable, motion:motion, ncc:lastRes&&lastRes.ncc}; }};
+  if(!items.length){ $("vSub").textContent="'품목·설정' 탭에서 품목을 만들고 양품을 돌리며 녹화하세요"; }
+  window.__ag={ENG:ENG, refs:function(){ return getRefs(curItem()); }, state:function(){ return {frameNo:frameNo, tracks:tracks.map(function(t){ return {id:t.id, n:t.n, ok:t.ok, ng:t.ng, unk:t.unk, isNg:t.isNg, done:t.done, v:t.v, views:t.nViews, st:t.cur&&t.cur.status}; }), draft:draft.length}; }};
 })();
 })();
 </script>
