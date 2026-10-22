@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#08101C">
 <meta name="mobile-web-app-capable" content="yes">
-<title>AIRGREEN 실시간 외관 검사</title>
+<title>실시간 외관 검사</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
@@ -33,7 +33,7 @@ button,input,select{font-family:inherit; color:inherit;}
 .wrap{max-width:720px; margin:0 auto; padding-left:max(14px, env(safe-area-inset-left,0px)); padding-right:max(14px, env(safe-area-inset-right,0px)); padding-block:0 calc(var(--nav-h) + 24px + env(safe-area-inset-bottom,0px));}
 .top{max-width:720px; margin:0 auto; padding:10px max(14px, env(safe-area-inset-right,0px)) 8px max(14px, env(safe-area-inset-left,0px)); display:flex; align-items:center; gap:9px;}
 .mark{width:24px; height:24px; flex:none;}
-.brand{font-weight:700; letter-spacing:.6px;}
+.brand{font-weight:700; letter-spacing:-.2px;}
 .brand-div{width:1px; height:13px; background:var(--line);}
 .brand-sub{color:var(--muted); font-size:14px;}
 .top-count{margin-left:auto; font-size:13px; color:var(--muted); white-space:nowrap;}
@@ -156,7 +156,7 @@ td{padding:9px 10px; border-top:1px solid var(--line); white-space:nowrap;}
 <body>
 <header class="top">
   <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="bmg" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#19C39C"/><stop offset="1" stop-color="#5B8CFF"/></linearGradient></defs><circle cx="16" cy="16" r="12.5" fill="none" stroke="url(#bmg)" stroke-width="4" stroke-linecap="round" stroke-dasharray="62 17" transform="rotate(-60 16 16)"/><circle cx="16" cy="16" r="4" fill="#19C39C"/></svg>
-  <span class="brand">AIRGREEN</span><span class="brand-div"></span><span class="brand-sub">실시간 외관 검사</span>
+  <span class="brand">실시간 외관 검사</span>
   <span class="top-count" id="topCount"></span>
 </header>
 
@@ -165,7 +165,7 @@ td{padding:9px 10px; border-top:1px solid var(--line); white-space:nowrap;}
 <section id="view-live">
   <div class="row2">
     <div><label class="label" for="itemSel">품목</label><select class="field" id="itemSel"></select></div>
-    <div><label class="label" for="lotInput">로트 번호</label><input class="field" id="lotInput" placeholder="예: 261022-A" autocomplete="off"></div>
+    <div><label class="label" for="lotInput">로트 번호</label><input class="field" id="lotInput" placeholder="예: 1022-A" autocomplete="off"></div>
   </div>
   <div class="stage" id="stage">
     <video id="video" playsinline muted autoplay></video>
@@ -278,7 +278,7 @@ td{padding:9px 10px; border-top:1px solid var(--line); white-space:nowrap;}
 <div class="modal" id="itemModal" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="itemTitle">
   <div class="sheet-h"><b id="itemTitle">품목 등록</b><button type="button" class="btn small ghost" id="itemClose">닫기</button></div>
   <div class="form">
-    <div><label class="label" for="fName">품목명</label><input class="field" id="fName" placeholder="예: AOH-50 오버캡 화이트 무광"></div>
+    <div><label class="label" for="fName">품목명</label><input class="field" id="fName" placeholder="예: 오버캡 화이트 50mm"></div>
     <div><label class="label" for="fCat">분류</label><select class="field" id="fCat"><option>캡·오버캡</option><option>펌프·밸브·노즐</option><option>사출</option><option>기타</option></select></div>
     <div>
       <span class="label">양품 기준</span>
@@ -337,7 +337,7 @@ var DEFECT_TYPES=["스크래치","이물·흑점","찍힘·눌림","미성형","
 
 /* ========== 저장소 (이 폰 안의 IndexedDB) ========== */
 var idb=null;
-function openDB(){ return new Promise(function(res,rej){ var r=indexedDB.open("airgreen-live",1);
+function openDB(){ return new Promise(function(res,rej){ var r=indexedDB.open("inspect-live",1);
   r.onupgradeneeded=function(){ var d=r.result; d.createObjectStore("items",{keyPath:"id"}); var s=d.createObjectStore("records",{keyPath:"id"}); s.createIndex("day","day"); };
   r.onsuccess=function(){ res(r.result); }; r.onerror=function(){ rej(r.error); }; }); }
 function store(name, mode){ return idb.transaction(name, mode||"readonly").objectStore(name); }
@@ -667,9 +667,9 @@ async function exportXlsx(){
   var sum=[["품목","분류","검사 수","불량 수","불량률(%)"]]; Object.keys(by).forEach(function(k){ var o=by[k]; sum.push([k,o.c,o.n,o.ng,Math.round(o.ng/o.n*1000)/10]); });
   var tc={}; recs.filter(function(r){return r.v==="NG";}).forEach(function(r){ (r.types&&r.types.length?r.types:["미분류"]).forEach(function(t){ tc[t]=(tc[t]||0)+1; }); });
   var ty=[["불량 유형","건수"]]; Object.keys(tc).sort(function(a,b){ return tc[b]-tc[a]; }).forEach(function(k){ ty.push([k,tc[k]]); });
-  XLSX_AUTHOR = lsGet("ag_live_author","") || "AIRGREEN";
+  XLSX_AUTHOR = lsGet("ag_live_author","");
   var r=periodRange(), data=buildXlsx([{name:"검사 기록",rows:rows,widths:[11,9,30,13,13,7,10,10,9,11,9,24,6]},{name:"품목별 요약",rows:sum,widths:[30,13,9,9,10]},{name:"불량 유형별",rows:ty,widths:[16,8]}]);
-  downloadBlob(new Blob([data],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}), "AIRGREEN_inspection_"+r[0]+(r[0]!==r[1]?"_"+r[1]:"")+".xlsx");
+  downloadBlob(new Blob([data],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}), "inspection_"+r[0]+(r[0]!==r[1]?"_"+r[1]:"")+".xlsx");
   toast(recs.length+"건을 엑셀로 저장했습니다");
 }
 
@@ -721,22 +721,22 @@ async function saveItem(){
   it.name=name; it.cat=$("fCat").value; it.sens=+$("fSens").value; it.minSize=+$("fMin").value; it.keepOk=$("fKeepOk").checked; it.ref=draftBlob; it.roi=draftRoi||{x:0.15,y:0.15,w:0.7,h:0.7};
   await dbPut("items", it); delete prepCache[it.id]; await loadItems(); $("itemSel").value=it.id; lsSet("ag_live_item",it.id); refreshTally(); renderItems(); $("itemModal").hidden=true; toast("품목을 저장했습니다");
 }
-async function exportItem(it){ var obj={kind:"airgreen-live-item", v:1, name:it.name, cat:it.cat, sens:it.sens, minSize:it.minSize, keepOk:!!it.keepOk, roi:it.roi, ref:await blobToDataURL(it.ref)};
-  downloadBlob(new Blob([JSON.stringify(obj)],{type:"application/json"}), "AIRGREEN_item_"+it.id+".json"); }
+async function exportItem(it){ var obj={kind:"inspect-live-item", v:1, name:it.name, cat:it.cat, sens:it.sens, minSize:it.minSize, keepOk:!!it.keepOk, roi:it.roi, ref:await blobToDataURL(it.ref)};
+  downloadBlob(new Blob([JSON.stringify(obj)],{type:"application/json"}), "item_"+it.id+".json"); }
 async function importItems(file){
-  try{ var obj=JSON.parse(await file.text()), list = obj.kind==="airgreen-live-item" ? [obj] : (obj.items||[]);
+  try{ var obj=JSON.parse(await file.text()), list = (obj.ref && obj.roi) ? [obj] : (obj.items||[]);
     for(var i=0;i<list.length;i++){ var o=list[i]; await dbPut("items",{id:o.id||rid(), createdAt:o.createdAt||Date.now(), name:o.name, cat:o.cat, sens:o.sens, minSize:o.minSize, keepOk:!!o.keepOk, roi:o.roi, ref:await dataURLToBlob(o.ref)}); }
     prepCache={}; await loadItems(); renderItems(); toast(list.length+"개 품목을 가져왔습니다"); }
   catch(e){ toast("파일을 읽지 못했습니다. 이 프로그램에서 내보낸 파일인지 확인해주세요"); }
 }
 async function backupAll(){
-  var its=await dbAll("items"), recs=await dbAll("records"), out={kind:"airgreen-live-backup", v:1, at:new Date().toISOString(), items:[], records:[]};
+  var its=await dbAll("items"), recs=await dbAll("records"), out={kind:"inspect-live-backup", v:1, at:new Date().toISOString(), items:[], records:[]};
   for(var i=0;i<its.length;i++){ var a=Object.assign({},its[i]); a.ref=await blobToDataURL(a.ref); out.items.push(a); }
   for(var j=0;j<recs.length;j++){ var r=Object.assign({},recs[j]); if(r.photo) r.photo=await blobToDataURL(r.photo); out.records.push(r); }
-  downloadBlob(new Blob([JSON.stringify(out)],{type:"application/json"}), "AIRGREEN_backup_"+ymd(new Date())+".json"); toast("품목 "+its.length+"개, 기록 "+recs.length+"건을 백업했습니다");
+  downloadBlob(new Blob([JSON.stringify(out)],{type:"application/json"}), "backup_"+ymd(new Date())+".json"); toast("품목 "+its.length+"개, 기록 "+recs.length+"건을 백업했습니다");
 }
 async function restoreAll(file){
-  try{ var o=JSON.parse(await file.text()); if(o.kind!=="airgreen-live-backup") throw 0;
+  try{ var o=JSON.parse(await file.text()); if(!Array.isArray(o.items)||!Array.isArray(o.records)) throw 0;
     for(var i=0;i<o.items.length;i++){ var a=o.items[i]; a.ref=await dataURLToBlob(a.ref); await dbPut("items",a); }
     for(var j=0;j<o.records.length;j++){ var r=o.records[j]; if(r.photo) r.photo=await dataURLToBlob(r.photo); await dbPut("records",r); }
     prepCache={}; await loadItems(); renderItems(); refreshTally(); toast("백업을 불러왔습니다 (품목 "+o.items.length+"개, 기록 "+o.records.length+"건)"); }
