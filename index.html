@@ -240,7 +240,9 @@ td{padding:9px 10px; border-top:1px solid var(--line); white-space:nowrap;}
     <label><input type="checkbox" id="swSave" checked> 자동 저장</label>
     <label><input type="checkbox" id="swSound" checked> 소리·진동</label>
     <label><input type="checkbox" id="swCareful"> 신중 모드 (3장 연속 확인)</label>
+    <label><input type="checkbox" id="swHand"> 손에 들고 검사 (거치대 없이)</label>
   </div>
+  <p class="hint" id="handHint" hidden style="margin-top:8px; color:var(--warn)">손에 들고 검사 중 — 바탕 등록 없이 화면 가장자리 색으로 바탕을 판단합니다. 검정 무광 매트처럼 <b>단색 바탕이 화면 가장자리까지 꽉 차게</b> 비추고, 제품이 화면 테두리에 닿지 않게 하세요. 흔들리는 순간은 자동으로 건너뜁니다.</p>
   <p class="hint" style="margin-top:10px">여러 개를 한꺼번에 올려도 되고, 손으로 돌려도 됩니다. 결함이 연속 2장(신중 모드 3장)에서 같은 제품에 보이면 즉시 빨간색으로 알리고, 제품이 화면 밖으로 나가면 그 제품의 결과를 기록합니다.</p>
 </section>
 
@@ -342,6 +344,14 @@ td{padding:9px 10px; border-top:1px solid var(--line); white-space:nowrap;}
       <input type="file" id="refVideoInput" accept="video/*" hidden>
       <div class="cap-box" id="capBox" hidden><video id="capVideo" playsinline muted autoplay></video><canvas class="ov" id="capOv" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"></canvas><span class="rec-live" id="recLive"><i></i><span id="recLiveTxt">녹화 중</span></span></div>
       <div class="progress" id="refProg" hidden><i></i></div>
+      <div id="cropWrap" hidden style="margin-top:10px">
+        <p class="hint" id="cropHint" style="color:var(--warn); font-weight:700"></p>
+        <div class="roi-box"><canvas id="cropCanvas"></canvas></div>
+        <div style="display:grid; grid-template-columns:1fr 2fr; gap:8px; margin-top:8px">
+          <button type="button" class="btn small ghost" id="cropSkip">이 사진 건너뛰기</button>
+          <button type="button" class="btn small primary" id="cropOk">이 영역을 기준으로 추가</button>
+        </div>
+      </div>
       <p class="hint" id="refHint" style="margin-top:8px">양품 하나를 검사할 자리에 두고 '돌리며 녹화'를 누른 뒤, 천천히 한 바퀴(앞·옆·윗면 등 검사할 면 모두) 돌려주세요. 서로 다른 모습만 골라 자동으로 저장합니다.</p>
       <div class="refgrid" id="refGrid"></div>
       <div style="display:flex; justify-content:space-between; gap:8px; margin-top:6px"><span class="hint">장면을 누르면 지워집니다</span><button type="button" class="btn small ghost danger" id="refClear">모두 지우기</button></div>
@@ -422,7 +432,7 @@ function setBackground(frames){ var acc=null, w=0,h=0;
   var o=new Float32Array(acc.length); for(var c=0;c<3;c++){ var ch=new Float32Array(w*h); for(var i2=0;i2<w*h;i2++) ch[i2]=acc[i2*3+c]; ch=boxBlur(ch,w,h); for(var i3=0;i3<w*h;i3++) o[i3*3+c]=ch[i3]; }
   station.bg=o; station.bgW=w; station.bgH=h; }
 /* ① 화면에서 제품 찾기 */
-function segment(f){
+function segment(f, relax){
   var w=f.w, h=f.h, n=w*h, d=f.d, fg=new Uint8Array(n), ex=new Uint8Array(n), useBg=!noBg&&station.bg&&station.bgW===w&&station.bgH===h, bc=useBg?null:borderColor(d,w,h), T=station.T, bg=station.bg;
   for(var i=0,j=0;i<n;i++,j+=4){ var r=d[j],g=d[j+1],b=d[j+2], br,bgc,bb;
     if(useBg){ br=bg[i*3]; bgc=bg[i*3+1]; bb=bg[i*3+2]; } else { br=bc[0]; bgc=bc[1]; bb=bc[2]; }
@@ -438,7 +448,8 @@ function segment(f){
       if(px>0&&fg[p-1]&&!lab[p-1]){lab[p-1]=id;st.push(p-1);} if(px<w-1&&fg[p+1]&&!lab[p+1]){lab[p+1]=id;st.push(p+1);}
       if(py>0&&fg[p-w]&&!lab[p-w]){lab[p-w]=id;st.push(p-w);} if(py<h-1&&fg[p+w]&&!lab[p+w]){lab[p+w]=id;st.push(p+w);} }
     objs.push({id:id,x:x0,y:y0,w:x1-x0+1,h:y1-y0+1,area:area,edge:edge}); }
-  var good=objs.filter(function(o){ return o.area>=minA && o.area<=maxA && !o.edge; });
+  // relax(사진·직접 지정 영역): 제품이 화면을 거의 채우거나 가장자리에 닿아도 허용
+  var good=objs.filter(function(o){ return o.area>=minA && o.area<=(relax?n*relax:maxA) && (relax||!o.edge); });
   return {w:w,h:h,lab:lab,ex:ex,objs:good,all:objs,useBg:useBg,bc:bc}; }
 /* ② 제품 잘라내기 (정밀 실루엣 포함) */
 function extract(hi, sg, o){
@@ -608,8 +619,8 @@ function frame1(src, refs, opt){
     for(var i=0,j=0;i<sgf.w*sgf.h;i++,j+=4){ var k3=i*3; if(Math.abs(d[j]-bg[k3])+Math.abs(d[j+1]-bg[k3+1])+Math.abs(d[j+2]-bg[k3+2])<lim){ bg[k3]+=(d[j]-bg[k3])*a; bg[k3+1]+=(d[j+1]-bg[k3+1])*a; bg[k3+2]+=(d[j+2]-bg[k3+2])*a; } } station.bgAdapted=(station.bgAdapted||0)+1; }
   return {objs:out, w:sgf.w, h:sgf.h, hiW:hif.w, hiH:hif.h, ms:performance.now()-T0, seg:sg}; }
 /* 기준 만들기용: 화면에서 가장 큰 제품 하나를 잘라 특징 계산 */
-function largestObject(src, nb){ noBg=!!nb; try{ return largest1(src); } finally { noBg=false; } }
-function largest1(src){ var sgf=drawTo(segC,src,SEG_W), sg=segment(sgf); if(!sg.objs.length) return null;
+function largestObject(src, nb, relax){ noBg=!!nb; try{ return largest1(src, relax); } finally { noBg=false; } }
+function largest1(src, relax){ var sgf=drawTo(segC,src,SEG_W), sg=segment(sgf, relax); if(!sg.objs.length) return null;
   var o=sg.objs.slice().sort(function(a,b){ return b.area-a.area; })[0], hif=drawTo(hiC,src,HI_W); hif.canvas=hiC; var T=prep(extract(hif,sg,o)); T.segArea=o.area; return T; }
 /* 저장용: 기준 장면 → {w,h,img(JPEG dataless 처리는 호출측), mask 비트} */
 function packMask(m){ var b=new Uint8Array(Math.ceil(m.length/8)); for(var i=0;i<m.length;i++) if(m[i]) b[i>>3]|=1<<(i&7); return b; }
@@ -683,6 +694,13 @@ var stationCfg=Object.assign({skin:true,gloves:[],T:70,bgAt:0,lock:true,adapt:tr
 var stream=null, track=null, torchOn=false, running=false, wakeLock=null, audioCtx=null;
 var tracks=[], trackSeq=0, frameNo=0, lastRecord=null, lastShown=null, chosenTypes=[], bgBusy=false, pausedUntil=0, picking=false;
 var MISS_MS=1200;
+/* 손에 들고 검사: 화면 흔들림 측정(64×48 축소 영상 차이). 흔들린 프레임은 번져서 오판정 원인 → 건너뜀 */
+var tinyC=document.createElement("canvas"); tinyC.width=64; tinyC.height=48; var tinyX=tinyC.getContext("2d",{willReadFrequently:true}), prevTiny=null;
+function measureMotion(v){ try{ tinyX.drawImage(v,0,0,64,48); }catch(e){ return 0; } var d=tinyX.getImageData(0,0,64,48).data, g=new Float32Array(64*48), sum=0;
+  for(var i=0,j=0;i<g.length;i++,j+=4){ g[i]=0.299*d[j]+0.587*d[j+1]+0.114*d[j+2]; if(prevTiny) sum+=Math.abs(g[i]-prevTiny[i]); }
+  var m=prevTiny?sum/g.length:0; prevTiny=g; return m; }
+var SHAKE=7, shakeN=0;
+function handMode(){ return !!settings.handheld; }
 function curItem(){ return items.find(function(i){ return i.id===$("itemSel").value; }); }
 
 /* ========== 검사 자리(바탕·제외 색) ========== */
@@ -739,7 +757,7 @@ function renderStation(){
 }
 function renderStatus(){
   var it=curItem(), n=it&&it.refs?it.refs.length:0;
-  $("statusLine").innerHTML = '<span>바탕 '+(stationCfg.bgAt?'<b>등록됨</b>':'<b class="warn">미등록</b>')+'</span><span>제외 색 <b>'+((stationCfg.gloves||[]).length)+'</b>개'+(stationCfg.skin?' + 맨손':'')+'</span>'+(it?'<span>기준 장면 '+(n?'<b>'+n+'</b>장':'<b class="warn">없음</b>')+'</span>':'');
+  $("statusLine").innerHTML = (handMode()?'<span><b class="warn">손에 들고 검사</b></span>':'<span>바탕 '+(stationCfg.bgAt?'<b>등록됨</b>':'<b class="warn">미등록</b>')+'</span>')+'<span>제외 색 <b>'+((stationCfg.gloves||[]).length)+'</b>개'+(stationCfg.skin?' + 맨손':'')+'</span>'+(it?'<span>기준 장면 '+(n?'<b>'+n+'</b>장':'<b class="warn">없음</b>')+'</span>':'');
 }
 
 /* ========== 기준 장면 ========== */
@@ -779,7 +797,7 @@ async function startCamera(){
   var caps=track.getCapabilities?track.getCapabilities():{}; $("torchBtn").disabled=!caps.torch;
   if(!audioCtx){ try{ audioCtx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
   requestWake(); running=true; loop();
-  if(!stationCfg.bgAt) toast("먼저 빈 자리를 비추고 '바탕 등록'을 누르면 더 정확합니다");
+  if(!stationCfg.bgAt && !handMode()) toast("먼저 빈 자리를 비추고 '바탕 등록'을 누르면 더 정확합니다 (거치대가 없으면 '손에 들고 검사'를 켜세요)");
 }
 async function requestWake(){ try{ if(navigator.wakeLock) wakeLock=await navigator.wakeLock.request("screen"); }catch(e){} }
 document.addEventListener("visibilitychange", function(){ if(document.visibilityState==="visible" && running) requestWake(); });
@@ -806,7 +824,10 @@ async function loop(){
       var refs=await getRefs(it);
       if(!refs.length){ setState("wait","이 품목은 기준 장면이 없습니다 — 품목·설정에서 녹화하세요"); clearOverlay(); }
       else {
-        var res=ENG.frame(v, refs, {sens:it.sens, minSize:it.minSize, topK:3, maxObjs:6, skip:skipSettled, refArea:refs.refArea, refAreaMax:refs.refAreaMax, refAspect:refs.refAspect, adaptBg:!!(stationCfg.adapt&&stationCfg.bgAt)}); lastRes=res;
+        var hand=handMode(), mo=hand?measureMotion(v):0;
+        if(hand && mo>SHAKE){ shakeN++; setState("move","흔들림 — 잠시 멈춰주세요"); setTimeout(loop, 40); return; }
+        shakeN=0;
+        var res=ENG.frame(v, refs, {sens:it.sens, minSize:it.minSize, topK:3, maxObjs:6, skip:skipSettled, noBg:hand, refArea:hand?0:refs.refArea, refAreaMax:refs.refAreaMax, refAspect:refs.refAspect, adaptBg:!hand&&!!(stationCfg.adapt&&stationCfg.bgAt)}); lastRes=res;
         if(ENG.station.bgAdapted && ENG.station.bgAdapted%150===0){ try{ localStorage.setItem("ag_live_bg", bgToDataURL()); }catch(e){} ENG.station.bgAdapted++; }
         await trackStep(res, v, it, refs.length); drawLive(res); renderLive();
         fpsN++; var now=performance.now(); if(now-fpsT>1000){ $("fps").textContent=(fpsN*1000/(now-fpsT)).toFixed(1)+"회/초 · "+Math.round(res.ms)+"ms"; fpsN=0; fpsT=now; }
@@ -819,9 +840,9 @@ async function loop(){
 function skipSettled(o){ var cx=o.x+o.w/2, cy=o.y+o.h/2; return tracks.some(function(tr){ return (tr.isNg||tr.done) && Math.hypot(cx-tr.cx,cy-tr.cy)<Math.max(tr.w,tr.h,o.w,o.h)*0.5 && Math.abs(o.w-tr.w)<tr.w*0.3; }); }
 function newTrack(now){ return {id:++trackSeq, n:0, ok:0, ng:0, unk:0, merged:0, run:0, views:{}, nViews:0, t0:now, last:now, isNg:false, done:false, shot:null, ngInfo:null, bestNcc:0}; }
 async function trackStep(res, v, it, nRefs){
-  frameNo++; var now=performance.now(), objs=res.objs, need=settings.careful?3:2;
+  frameNo++; var now=performance.now(), objs=res.objs, need=(settings.careful||handMode())?3:2; /* 손에 들면 흔들림 잡음이 있어 3장 연속 확인 */
   objs.forEach(function(o){ o.cx=o.seg.x+o.seg.w/2; o.cy=o.seg.y+o.seg.h/2; o.tr=null; });
-  var pairs=[]; tracks.forEach(function(tr){ objs.forEach(function(o){ var d=Math.hypot(o.cx-tr.cx,o.cy-tr.cy), lim=Math.max(tr.w,tr.h,o.seg.w,o.seg.h)*0.75; if(d<lim) pairs.push([d,tr,o]); }); });
+  var pairs=[]; tracks.forEach(function(tr){ objs.forEach(function(o){ var d=Math.hypot(o.cx-tr.cx,o.cy-tr.cy), lim=Math.max(tr.w,tr.h,o.seg.w,o.seg.h)*(handMode()?1.3:0.75); if(d<lim) pairs.push([d,tr,o]); }); });
   pairs.sort(function(a,b){ return a[0]-b[0]; });
   var uT=[], uO=[]; pairs.forEach(function(p){ if(uT.indexOf(p[1])>=0||uO.indexOf(p[2])>=0) return; uT.push(p[1]); uO.push(p[2]); p[2].tr=p[1]; });
   objs.forEach(function(o){ if(!o.tr && o.status!=="skip"){ o.tr=newTrack(now); tracks.push(o.tr); } });
@@ -836,7 +857,7 @@ async function trackStep(res, v, it, nRefs){
     if(o.status==="ng" && tr.run>=need+(tr.edgeOnly?1:0) && !tr.isNg){ tr.isNg=true; tr.shot=snapshot(v,res,o); tr.ngT=o.T; tr.ngInfo={n:o.blobs.length, a:o.areaPct, ncc:o.ncc}; beep(false); flashVerdict(); }
     if(!tr.isNg && it.keepOk && o.status==="ok" && (tr.ok===2||tr.ok%12===0)) tr.shot=snapshot(v,res,o);
   });
-  var gone=tracks.filter(function(tr){ return now-tr.last>MISS_MS; });
+  var gone=tracks.filter(function(tr){ return now-tr.last>(handMode()?2000:MISS_MS); });
   for(var i=0;i<gone.length;i++){ if(!gone[i].done) await finalize(gone[i],"자동"); }
   tracks=tracks.filter(function(tr){ return gone.indexOf(tr)<0; });
 }
@@ -1051,7 +1072,7 @@ var editing=null, draft=[], recOn=false, itemDelPending=false, refBusy=false;
 var DIV=0.007, MAX_REFS=220;
 function thumbOf(canvas){ var c=document.createElement("canvas"), s=Math.min(72/canvas.width,72/canvas.height); c.width=72; c.height=72; var x=c.getContext("2d"); x.fillStyle="#04080F"; x.fillRect(0,0,72,72); x.drawImage(canvas,(72-canvas.width*s)/2,(72-canvas.height*s)/2,canvas.width*s,canvas.height*s); return c; }
 async function openItemForm(it){
-  editing=it||null; draft=[]; itemDelPending=false; recOn=false;
+  editing=it||null; draft=[]; itemDelPending=false; recOn=false; cropQueue=[]; $("cropWrap").hidden=true;
   $("itemTitle").textContent=it?"품목 수정":"품목 등록"; $("fName").value=it?it.name:""; $("fCat").value=it?it.cat:"캡·오버캡";
   $("fSens").value=it?it.sens:5; $("fSensV").textContent=$("fSens").value; $("fMin").value=it?it.minSize:8; $("fMinV").textContent=$("fMin").value; $("fKeepOk").checked=!!(it&&it.keepOk); $("fMinCov").value=String(it&&it.minCov||0);
   $("itemDel").hidden=!it; $("itemExport").hidden=!it; $("itemDel").textContent="삭제"; $("itemDel").classList.remove("confirming");
@@ -1077,7 +1098,7 @@ async function addCandidate(T, div){
   /* 전체 모습이 충분히 다르면 추가. 비슷해 보여도 지금까지 모은 기준 장면만으로 '양품'이 설명되지 않으면(글자·무늬가 막 보이기 시작하는 각도 등) 추가
      → 글자·무늬가 보이기 시작하는 각도처럼 모습이 빨리 바뀌는 구간은 촘촘히, 민무늬 구간은 듬성듬성 저장됨 */
   var Ps=draft.filter(function(d){ return d.P; }).map(function(d){ return d.P; });
-  if(Ps.length && md<lim){ var j=ENG.judge(T, Ps, {sens:Math.min(10,(+$("fSens").value||5)+3), minSize:Math.max(3,(+$("fMin").value||8)>>1), topK:1, maxK:1}); /* 가장 가까운 장면 하나로만, 검사보다 엄격하게 봐서 여유 있게 촘촘히 저장 */ if(j.status==="ok") return "dup"; }
+  if(Ps.length && md<lim){ var hm=handMode(), j=ENG.judge(T, Ps, {sens:Math.min(10,(+$("fSens").value||5)+(hm?1:3)), minSize:hm?(+$("fMin").value||8):Math.max(3,(+$("fMin").value||8)>>1), topK:hm?2:1, maxK:hm?2:1}); /* 가장 가까운 장면 하나로만, 검사보다 엄격하게 봐서 여유 있게 촘촘히 저장 */ if(j.status==="ok") return "dup"; }
   if(draft.length>=MAX_REFS) return "full";
   var st=await prepToStored(T), th=thumbOf(T.canvas); draft.push({st:st, desc:T.desc, aspect:T.aspect, P:ENG.slim(T), thumb:th}); return "add";
 }
@@ -1091,7 +1112,9 @@ async function toggleRec(){
   var t0=Date.now(), added=0, code="", hist=[];
   await sleep(300);
   while(recOn && !$("itemModal").hidden){
-    var T=null; try{ T=ENG.largestObject($("capVideo")); }catch(e){}
+    var T=null, hand=handMode();
+    if(hand && measureMotion($("capVideo"))>SHAKE){ $("recLiveTxt").textContent="흔들림 — 천천히 · 새 장면 "+added+"장"; await sleep(30); continue; }
+    try{ T=ENG.largestObject($("capVideo"), hand); }catch(e){}
     code=await addCandidate(T); if(code==="add"){ added++; if(added%3===0) renderRefGrid(); }
     hist.push(code==="add"?1:0); if(hist.length>12) hist.shift();
     /* 연속으로 거의 매번 새 장면이면 돌리는 속도가 빠른 것 → 사이 각도가 빠져 오판정 원인이 됨 */
@@ -1104,12 +1127,51 @@ async function toggleRec(){
   toast("새 장면 "+added+"장을 추가했습니다 (모두 "+draft.length+"장). 저장을 눌러야 반영됩니다");
 }
 function setProg(p){ $("refProg").hidden=p==null; $("refProg").firstElementChild.style.width=Math.round((p||0)*100)+"%"; }
+/* 사진 여러 장: ① 자동으로 제품 찾기 ② 못 찾으면 조건을 넓혀 다시(화면을 거의 채운 근접 사진·가장자리에 닿은 제품)
+   ③ 그래도 못 찾거나 손이 많이 가린 사진은 사용자가 손가락으로 제품을 감싸 지정 */
+function loadFileImage(f){ return new Promise(function(res,rej){ var u=URL.createObjectURL(f), im=new Image(); im.onload=function(){ URL.revokeObjectURL(u); res(im); }; im.onerror=function(){ URL.revokeObjectURL(u); rej(new Error("img")); }; im.src=u; }); }
+function shrinkImage(im){ var k=Math.min(1,1600/Math.max(im.naturalWidth||im.width,im.naturalHeight||im.height)), c=document.createElement("canvas"); c.width=Math.round((im.naturalWidth||im.width)*k); c.height=Math.round((im.naturalHeight||im.height)*k); c.getContext("2d").drawImage(im,0,0,c.width,c.height); return c; }
+var cropQueue=[], cropStats=null;
 async function addFromPhotos(files){
-  if(refBusy) return; refBusy=true; var added=0, miss=0;
+  if(refBusy) return; refBusy=true; var st={total:files.length, added:0, dup:0, bad:0, manual:[]};
   for(var i=0;i<files.length;i++){ setProg(i/files.length);
-    try{ var u=URL.createObjectURL(files[i]), im=await loadImage(u); URL.revokeObjectURL(u); var c=await addCandidate(ENG.largestObject(im,true), DIV/4); if(c==="add") added++; else if(c!=="dup") miss++; }catch(e){ miss++; } }
+    var im=null; try{ im=shrinkImage(await loadFileImage(files[i])); }catch(e){ st.bad++; continue; }
+    var T=null; try{ T=ENG.largestObject(im,true) || ENG.largestObject(im,true,0.85); }catch(e){}
+    var c = T ? await addCandidate(T, DIV/4) : "none";
+    if(c==="add") st.added++; else if(c==="dup") st.dup++; else st.manual.push(im); }
   setProg(null); refBusy=false; renderRefGrid();
-  toast("사진 "+files.length+"장 중 "+added+"장을 기준 장면으로 추가했습니다"+(miss?" · "+miss+"장은 제품을 찾지 못함":""));
+  cropStats=st; cropQueue=st.manual.slice();
+  if(cropQueue.length){ toast("자동으로 "+st.added+"장 추가 · 제품을 못 찾은 "+cropQueue.length+"장은 직접 지정해주세요"); showCrop(); }
+  else photosDone();
+}
+function photosDone(){ var st=cropStats||{total:0,added:0,dup:0,bad:0};
+  $("cropWrap").hidden=true;
+  toast("사진 "+st.total+"장 중 "+st.added+"장을 기준 장면으로 추가했습니다"+(st.dup?" · "+st.dup+"장은 이미 있는 모습과 같아 생략":"")+(st.bad?" · "+st.bad+"장은 열 수 없는 형식":"")+(st.added?" — 아래 '저장'을 눌러야 반영됩니다":""));
+  cropStats=null; }
+var cropImg=null, cropBox=null;
+function showCrop(){ if(!cropQueue.length){ photosDone(); return; } cropImg=cropQueue[0]; cropBox={x:0.2,y:0.2,w:0.6,h:0.6};
+  $("cropHint").textContent="제품을 찾지 못한 사진 "+cropQueue.length+"장 남음 — 제품을 손가락으로 끌어 초록 상자로 감싸주세요";
+  $("cropWrap").hidden=false; drawCrop(); $("cropWrap").scrollIntoView({block:"center"}); }
+function drawCrop(){ var c=$("cropCanvas"), im=cropImg; if(!im) return; c.width=im.width; c.height=im.height; var x=c.getContext("2d"); x.drawImage(im,0,0);
+  var r=cropBox, rx=r.x*c.width, ry=r.y*c.height, rw=r.w*c.width, rh=r.h*c.height;
+  x.fillStyle="rgba(4,8,15,.6)"; x.fillRect(0,0,c.width,ry); x.fillRect(0,ry+rh,c.width,c.height-ry-rh); x.fillRect(0,ry,rx,rh); x.fillRect(rx+rw,ry,c.width-rx-rw,rh);
+  x.strokeStyle="#19C39C"; x.lineWidth=Math.max(3,c.width/200); x.strokeRect(rx,ry,rw,rh); }
+(function(){ var c=$("cropCanvas"), stt=null;
+  function pos(e){ var b=c.getBoundingClientRect(); return [Math.min(1,Math.max(0,(e.clientX-b.left)/b.width)), Math.min(1,Math.max(0,(e.clientY-b.top)/b.height))]; }
+  c.addEventListener("pointerdown",function(e){ stt=pos(e); c.setPointerCapture(e.pointerId); e.preventDefault(); });
+  c.addEventListener("pointermove",function(e){ if(!stt) return; var p=pos(e); cropBox={x:Math.min(stt[0],p[0]),y:Math.min(stt[1],p[1]),w:Math.abs(p[0]-stt[0]),h:Math.abs(p[1]-stt[1])}; drawCrop(); });
+  c.addEventListener("pointerup",function(){ stt=null; if(cropBox.w<0.05||cropBox.h<0.05){ cropBox={x:0.2,y:0.2,w:0.6,h:0.6}; drawCrop(); toast("상자가 너무 작습니다. 제품 전체를 감싸도록 끌어주세요"); } }); })();
+async function cropAccept(){
+  if(!cropImg) return; var im=cropImg, r=cropBox, W=im.width, H=im.height;
+  // 상자보다 15% 넓게 잘라 가장자리를 바탕으로 쓰게 함
+  var mx=r.w*0.15, my=r.h*0.15, sx=Math.max(0,r.x-mx)*W, sy=Math.max(0,r.y-my)*H, sw=Math.min(1,r.x+r.w+mx)*W-sx, sh=Math.min(1,r.y+r.h+my)*H-sy;
+  var c=document.createElement("canvas"); c.width=Math.round(sw); c.height=Math.round(sh); c.getContext("2d").drawImage(im,sx,sy,sw,sh,0,0,c.width,c.height);
+  var T=null; try{ T=ENG.largestObject(c,true) || ENG.largestObject(c,true,0.95); }catch(e){}
+  var code = T ? await addCandidate(T, 0) : "none";
+  if(code==="add"){ cropStats.added++; renderRefGrid(); cropQueue.shift(); showCrop(); }
+  else if(code==="hand"){ toast("손이 제품을 많이 가린 사진입니다. 건너뛰거나 다른 사진을 쓰세요"); }
+  else if(code==="dup"){ cropStats.dup++; cropQueue.shift(); showCrop(); }
+  else toast("이 영역에서도 제품과 바탕이 구분되지 않습니다. 제품만 꼭 맞게 감싸거나, 단색 바탕에서 다시 찍어주세요");
 }
 async function addFromVideo(file){
   if(refBusy) return; refBusy=true; var vid=document.createElement("video"), url=URL.createObjectURL(file), added=0;
@@ -1262,8 +1324,14 @@ $("overlay").addEventListener("click", function(e){ if(picking) pickAt(e); });
 $("finishBtn").addEventListener("click", finishAll);
 $("photoBtn").addEventListener("click", function(){ $("photoInput").click(); });
 $("photoInput").addEventListener("change", function(e){ var f=e.target.files&&e.target.files[0]; e.target.value=""; if(f) judgePhoto(f); });
-[["swSave","save"],["swSound","sound"],["swCareful","careful"]].forEach(function(a){ $(a[0]).checked=!!settings[a[1]];
-  $(a[0]).addEventListener("change",function(){ settings[a[1]]=$(a[0]).checked; lsSet("ag_live_settings2",settings); }); });
+[["swSave","save"],["swSound","sound"],["swCareful","careful"],["swHand","handheld"]].forEach(function(a){ $(a[0]).checked=!!settings[a[1]];
+  $(a[0]).addEventListener("change",function(){ settings[a[1]]=$(a[0]).checked; lsSet("ag_live_settings2",settings); if(a[1]==="handheld") applyHand(true); }); });
+/* 손 모드 켜기/끄기: 카메라 고정 해제(밝기 자동), 안내 표시, 추적 초기화 */
+async function applyHand(changed){ var on=handMode(); $("handHint").hidden=!on; $("bgBtn").disabled=on; tracks=[]; prevTiny=null;
+  if(on && track) await lockCamera(false);
+  if(changed) toast(on?"손에 들고 검사로 바꿨습니다. 기준 장면도 이 방식(단색 바탕)으로 녹화하면 더 정확합니다":"거치대 고정 검사로 바꿨습니다. '바탕 등록'을 다시 눌러주세요");
+  renderStatus(); }
+applyHand(false);
 $("itemSel").addEventListener("change", function(){ lsSet("ag_live_item",$("itemSel").value); tracks=[]; refreshTally(); renderStatus(); });
 $("fixOk").addEventListener("click", function(){ fixLast("OK"); });
 $("fixNg").addEventListener("click", function(){ fixLast("NG"); });
@@ -1283,12 +1351,18 @@ $("importItemBtn").addEventListener("click", function(){ $("importItemInput").cl
 $("importItemInput").addEventListener("change", function(e){ var f=e.target.files&&e.target.files[0]; e.target.value=""; if(f) importItems(f); });
 $("itemList").addEventListener("click", function(e){ var a=e.target.closest("[data-edit]"); if(a){ openItemForm(items.find(function(i){ return i.id===a.dataset.edit; })); return; }
   var u=e.target.closest("[data-use]"); if(u){ $("itemSel").value=u.dataset.use; lsSet("ag_live_item",u.dataset.use); refreshTally(); tracks=[]; go("live"); } });
-$("itemClose").addEventListener("click", function(){ recOn=false; $("itemModal").hidden=true; });
+var closePending=false;
+$("itemClose").addEventListener("click", function(){
+  var changed = draft.length !== ((editing&&editing.refs)||[]).length;
+  if(changed && !closePending){ closePending=true; toast("추가한 기준 장면이 아직 저장되지 않았습니다. 닫으려면 한 번 더 누르세요"); setTimeout(function(){ closePending=false; },4000); return; }
+  closePending=false; recOn=false; cropQueue=[]; $("cropWrap").hidden=true; $("itemModal").hidden=true; });
 $("refRecBtn").addEventListener("click", toggleRec);
 $("refPhotosBtn").addEventListener("click", function(){ if(!refBusy) $("refPhotosInput").click(); });
 $("refPhotosInput").addEventListener("change", function(e){ var f=Array.prototype.slice.call(e.target.files||[]); e.target.value=""; if(f.length) addFromPhotos(f); });
 $("refVideoBtn").addEventListener("click", function(){ if(!refBusy) $("refVideoInput").click(); });
 $("refVideoInput").addEventListener("change", function(e){ var f=e.target.files&&e.target.files[0]; e.target.value=""; if(f) addFromVideo(f); });
+$("cropOk").addEventListener("click", cropAccept);
+$("cropSkip").addEventListener("click", function(){ if(cropStats) cropStats.bad++; cropQueue.shift(); showCrop(); });
 $("refGrid").addEventListener("click", function(e){ var b=e.target.closest("[data-ref]"); if(!b||refBusy) return; draft.splice(+b.dataset.ref,1); renderRefGrid(); });
 var refClearPending=false;
 $("refClear").addEventListener("click", function(){ if(refBusy) return; if(!refClearPending){ refClearPending=true; $("refClear").textContent="정말 모두 지우기?"; $("refClear").classList.add("confirming"); setTimeout(function(){ refClearPending=false; $("refClear").textContent="모두 지우기"; $("refClear").classList.remove("confirming"); },4000); return; }
@@ -1312,7 +1386,8 @@ $("authorInput").value=lsGet("ag_live_author","");
 $("authorInput").addEventListener("change", function(){ lsSet("ag_live_author", $("authorInput").value.trim()); toast("엑셀 작성자 이름을 저장했습니다"); });
 $("restoreBtn").addEventListener("click", function(){ $("restoreInput").click(); });
 $("restoreInput").addEventListener("change", function(e){ var f=e.target.files&&e.target.files[0]; e.target.value=""; if(f) restoreAll(f); });
-["itemModal","recModal"].forEach(function(id){ $(id).addEventListener("click",function(e){ if(e.target.id===id){ if(id==="itemModal") recOn=false; $(id).hidden=true; } }); });
+/* 품목 편집 창은 바깥을 눌러도 닫지 않음(녹화·추가한 장면이 저장 전에 날아가는 것 방지) */
+$("recModal").addEventListener("click",function(e){ if(e.target.id==="recModal") $("recModal").hidden=true; });
 
 /* ========== 시작 ========== */
 (async function init(){
